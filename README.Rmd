@@ -1,0 +1,156 @@
+---
+title: "Portfolio plan: Analysis of Rush"
+output:
+  github_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE, eval=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
+
+# Load libraries (every time)
+
+library(tidyverse)
+library(spotifyr)
+library(dplyr)
+library(ggplot2)
+
+# Set Spotify access variables (every time)
+
+load("Corpus.RData")
+load("spotify_env.RData")
+
+set_spotify_ID()
+```
+
+__Computational Musicology 2020__
+
+__Jesper Kuiper, 12984787__
+
+The Canadian band [Rush](https://bit.ly/2HkT2Sx) is at its heart a rock band. However, during the extensive lifetime of Rush, its music found a lot of influence from a wide scope of genres and music styles. With a lifespan of more than 40 years and a total of 19 studio albums, a lot has changed from begin to end. 
+In this portfolio, I will try to analyze the way Rush's music changed over the years, and I will try to determine different style periods accross its albums. Furthermore, I will look at how different genres apply to different eras of Rush. 
+
+## The corpora
+Of course, the most important corpus I will use is that containing the audio features of the entire discography of Rush itself. Upon initial inspection, I decided to remove the album "2112 - 40 Years Closer: A Q&A With Alex Lifeson And Terry Brown Commentary" as it contains commentary and is thus not relevant to my analysis. 
+Furthermore, I looked at different genres that are said to be part of at least some era of Rush. For each of these genres I collected the audio features of a playlist that seemed most representative for that genre. I chose playlists of the following genres:
+
+ * Rock:
+    + 70s Rock Anthems
+    + 80s Rock Anthems
+    + 90s Rock Anthems
+    + 00s Rock Anthems
+ * Progressive Rock (user-made playlist)
+ * Pop Rock (Pop Rock Shot)
+ * Reggae (Reggae Classics)
+ * New Wave (Is it New Wave?)
+ * Jazz (Jazz Classics)
+ * Metal (Metal Essentials)
+ * Symphonic Metal (user-made playlist)
+ 
+I chose a total of four playlists for the Rock genre, so that I can analyse whether Rush followed the general trend of rock music through the years. 
+
+## Initial analysis
+I analyzed the audio features of each studio album of Rush, to see whether there are some easily spottable trends in there. The studio albums are, in order of release date:
+
+1. Rush (1974)
+2. Fly By Night (1975)
+3. Caress of Steel (1975)
+4. 2112 (1976)
+5. A Farewell to Kings (1977)
+6. Hemispheres (1978)
+7. Permanent Waves (1980)
+8. Moving Pictures (1981)
+9. Signals (1982)
+10. Grace Under Pressure (1984)
+11. Power Windows (1985)
+12. Hold Your Fire (1987)
+13. Presto (1989)
+14. Roll The Bones (1991)
+15. Counterparts (1993)
+16. Test For Echo (1997)
+17. Vapor Trails (2002)
+19. Snakes & Arrows (2007)
+20. Clockwork Angels (2012)
+
+```{r plot, include=TRUE, eval=TRUE}
+const = function(x){x[1]}
+func = mean
+rush_studioalbum_idx <- c(1, 2, 3, 4, 6, 7, 8, 9, 12, 13, 14, 15, 17, 19, 20, 21, 24, 27, 30)
+
+rush_features_by_album <- rush %>% 
+  filter(album_id != "3U6vR85uJOAT08DLnJhZhH") %>% 
+  group_by(album_name) %>%
+  summarise(
+    release=const(album_release_date),
+    danceability_sd=sd(danceability),
+    energy_sd=sd(energy),
+    speechiness_sd=sd(speechiness),
+    acousticness_sd=sd(acousticness),
+    liveness_sd=sd(liveness),
+    valence_sd=sd(valence),
+    instrumentalness_sd=sd(instrumentalness),
+    instrumentalness=func(instrumentalness),
+    danceability=func(danceability),
+    energy=func(energy),
+    speechiness=func(speechiness),
+    acousticness=func(acousticness),
+    liveness=func(liveness),
+    valence=func(valence),
+    loudness = func(loudness),
+    
+  ) %>% 
+  arrange(release)
+
+rush_features_by_album$album_no <- c(1:nrow(rush_features_by_album))
+
+rush_features_by_studioalbum <- rush_features_by_album[rush_studioalbum_idx,]
+rush_features_by_studioalbum$album_no <- c(1:nrow(rush_features_by_studioalbum))
+
+plot_studioalbum_features <- ggplot(rush_features_by_studioalbum, aes(x=album_no)) +
+  geom_line(aes(x=album_no, y=danceability, colour="danceability")) + 
+  geom_line(aes(x=album_no, y=energy, colour="energy")) + 
+  geom_line(aes(x=album_no, y=speechiness, colour="speechiness")) + 
+  geom_line(aes(x=album_no, y=acousticness, colour="acousticness")) + 
+  geom_line(aes(x=album_no, y=instrumentalness, colour="instrumentalness")) + 
+  geom_line(aes(x=album_no, y=liveness, colour="liveness")) + 
+  geom_line(aes(x=album_no, y=valence, colour="valence")) + 
+  scale_x_continuous(
+    name="Studio album idx",
+    breaks=c(1:nrow(rush_features_by_studioalbum)), 
+    labels=c(1:nrow(rush_features_by_studioalbum)),
+    limits=c(1,nrow(rush_features_by_studioalbum))) +
+  scale_y_continuous(
+    name="Value",
+    breaks=c(0:10)/10, 
+    labels=c(0:10)/10,
+    limits=c(0,1)) +
+  ggtitle("Mean of music features per studio album") +
+  labs(color="Property")
+plot_studioalbum_features
+```
+
+This initial plot looks promising; we can see at least the _energy_, _valence_ and _danceability_ following some kind of a pattern here. Interestingly, we can see a dip in _energy_ and a peak in both _danceability_ and _valence_ at the 13th studio album. It seems like Rush tried to do something different in that album. This could indeed be what happened, as this album - Presto - wasn't received very well by the general public. It seems Rush learned from this, as, according to my plot, they seem to return to their 'roots' in their later albums. 
+
+```{r tempoplot}
+rush_tempoloudns_by_album <- rush %>% 
+  filter(album_id != "3U6vR85uJOAT08DLnJhZhH") %>% 
+  group_by(album_name) %>%
+  summarise(
+    release=const(album_release_date),
+    tempo=mean(tempo),
+    loudness=mean(loudness)
+  ) %>% 
+  arrange(release)
+
+rush_tempo_by_studioalbum <- rush_tempoloudns_by_album[rush_studioalbum_idx,c("album_name", "release", "tempo")]
+rush_loudn_by_studioalbum <- rush_tempoloudns_by_album[rush_studioalbum_idx,c("album_name", "release", "loudness")]
+
+plot_tempo_rush <- ggplot(rush_tempo_by_studioalbum, aes(x=c(1:nrow(rush_tempo_by_studioalbum)), y=tempo)) + 
+    geom_line()
+plot_loudness_rush <- ggplot(rush_loudn_by_studioalbum, aes(x=c(1:nrow(rush_loudn_by_studioalbum)), y=loudness)) + 
+    geom_line()
+plot_loudness_rush
+    
+```
+
+[^1]: The link may not work; this is because for some reason Github inserts a '/' before a bracket. 
