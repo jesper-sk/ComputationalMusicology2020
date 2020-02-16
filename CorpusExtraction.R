@@ -13,9 +13,9 @@ load("spotify_env.RData")
 set_spotify_ID()
 
 # Work with spotifyr. Note that playlists also require a username.
-rush <- get_artist_audio_features('rush')
+rush <- get_artist_audio_features('rush') %>% arrange(album_release_date)
 rush_artist <- get_artist('2Hkut4rAAyrQxRdof7FVJq')
-rush_studioalbum_idx <- c(1, 2, 3, 4, 6, 7, 8, 9, 12, 13, 14, 15, 17, 19, 20, 21, 24, 25, 27, 30)
+rush_studioalbum_idx <- c(1, 2, 3, 4, 6, 7, 8, 9, 12, 13, 14, 15, 17, 19, 20, 21, 23, 24, 27, 30)
 
 # Helper functions
 const = function(x){x[1]}
@@ -56,35 +56,26 @@ genre_symphmetal <- get_playlist_audio_features('Diron Donadel', '1JnMmes2yEHNvS
       liveness=func(liveness),
       valence=func(valence),
       loudness = func(loudness),
-      
+      loudness_sd = sd(loudness),
+      tempo = func(tempo),
+      tempo_sd = sd(tempo),
+      album_id = const(album_id)
     ) %>% 
     arrange(release)
   
-  rush_features_by_album$album_no <- c(1:nrow(rush_features_by_album))
+  #Getting boolean if studio album in main dataset
+  rush$is_studio <- rush$album_id %in% rush_features_by_album[rush_studioalbum_idx,]$album_id
   
-  rush_features_by_studioalbum <- rush_features_by_album[rush_studioalbum_idx,]
-  rush_features_by_studioalbum$album_no <- c(1:nrow(rush_features_by_studioalbum))
+  #Getting album index in features by album
+  rush_features_by_album$album_idx <- c(1:nrow(rush_features_by_album))
   
-  plot_studioalbum_features <- ggplot(rush_features_by_studioalbum, aes(x=album_no)) +
-    geom_line(aes(x=album_no, y=danceability, colour="danceability")) + 
-    geom_line(aes(x=album_no, y=energy, colour="energy")) + 
-    geom_line(aes(x=album_no, y=speechiness, colour="speechiness")) + 
-    geom_line(aes(x=album_no, y=acousticness, colour="acousticness")) + 
-    geom_line(aes(x=album_no, y=instrumentalness, colour="instrumentalness")) + 
-    geom_line(aes(x=album_no, y=liveness, colour="liveness")) + 
-    geom_line(aes(x=album_no, y=valence, colour="valence")) + 
-    scale_x_continuous(
-      name="Studio album idx",
-      breaks=c(1:nrow(rush_features_by_studioalbum)), 
-      labels=c(1:nrow(rush_features_by_studioalbum)),
-      limits=c(1,20)) +
-    scale_y_continuous(
-      name="Value",
-      breaks=c(0:10)/10, 
-      labels=c(0:10)/10,
-      limits=c(0,1)) +
-    ggtitle("Mean of music features per studio album") +
-    labs(color="Property")
+  #Getting studio album index in ^^
+  rush_features_by_album$studioalbum_idx <- -1
+  rush_features_by_album[rush_studioalbum_idx,]$studioalbum_idx <- c(1:nrow(rush_features_by_album[rush_studioalbum_idx,]))
+  
+  #Getting boolean if studio album in ^^
+  rush_features_by_album$is_studio <- FALSE
+  rush_features_by_album[rush_studioalbum_idx,]$is_studio <- TRUE
 
 
 # In the end

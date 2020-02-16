@@ -69,7 +69,7 @@ albums are, in order of release date:
 18. Snakes & Arrows (2007)
 19. Clockwork Angels (2012)
 
-![](README_files/figure-gfm/plot-1.png)<!-- -->
+<img src="README_files/figure-gfm/plot-1.png" style="display: block; margin: auto;" />
 
 This initial plot looks promising; we can see at least the *energy*,
 *valence* and *danceability* following some kind of a pattern here.
@@ -80,4 +80,34 @@ what happened, as this album - Presto - wasn’t received very well by the
 general public. It seems Rush learned from this, as, according to my
 plot, they seem to return to their ‘roots’ in their later albums.
 
-![](README_files/figure-gfm/tempoplot-1.png)<!-- -->
+## Principal Component Analysis
+
+The results as shown above implies that there is a good chance the these
+music features could be enough to give an initial classification between
+Rush albums. To be able to easily incoroporate all these features in my
+classification, I used a principal component analysis to further explore
+the data. A principal component analysis reduces the dimensionality of a
+dataset (my initial dataset is in this case 8-dimensional) by breaking
+it down into multiple principal components, where the first principal
+component captures most information (information from all dimensions of
+the initial set\!). Each next principal component captures less and less
+information. Firstly, I analyzed all albums of Rush. The values of the
+first (i.e. most informative) principal component plotted against each
+album is shown below:
+
+<img src="README_files/figure-gfm/liveclassification-1.png" style="display: block; margin: auto;" />
+
+We can see that this principal component classifies all live-albums of
+Rush perfectly. However, as the first principal compment captures the
+most information of the entire dataset, I will now perform another PCA
+on only the studio albums for more accurate comparison.
+
+<img src="README_files/figure-gfm/studio_pca-1.png" style="display: block; margin: auto;" />
+Looking at the first four principal components we can see that indeed
+the first one captures the most radical changes across albums.
+Furthermore, it looks like these principal components divide Rush’
+discography up in about 5 different eras. The next step will be to
+perform an actual clustering of these data and evaluate whether we need
+any more data to cluster the studio albums
+
+###### *to be continued…*
