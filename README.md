@@ -95,19 +95,19 @@ information. Firstly, I analyzed all albums of Rush. The values of the
 first (i.e. most informative) principal component plotted against each
 album is shown below:
 
-<img src="README_files/figure-gfm/liveclassification-1.png" style="display: block; margin: auto;" />
+![](README_files/figure-gfm/liveclassification-1.png)<!-- -->
 
 We can see that this principal component classifies all live-albums of
 Rush perfectly. However, as the first principal compment captures the
 most information of the entire dataset, I will now perform another PCA
 on only the studio albums for more accurate comparison.
 
-<img src="README_files/figure-gfm/studio_pca-1.png" style="display: block; margin: auto;" />
-Looking at the first four principal components we can see that indeed
-the first one captures the most radical changes across albums.
-Furthermore, it looks like these principal components divide Rush’
-discography up in about 5 different eras. The next step will be to
-perform an actual clustering of these data and evaluate whether we need
-any more data to cluster the studio albums
+![](README_files/figure-gfm/studio_pca-1.png)<!-- --> Looking at the
+first four principal components we can see that indeed the first one
+captures the most radical changes across albums. Furthermore, it looks
+like these principal components divide Rush’ discography up in about 5
+different eras. The next step will be to perform an actual clustering of
+these data and evaluate whether we need any more data to cluster the
+studio albums
 
 ###### *to be continued…*
