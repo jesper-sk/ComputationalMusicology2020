@@ -107,7 +107,7 @@ This initial plot looks promising; we can see at least the _energy_, _valence_ a
 The results as shown above implies that there is a good chance the these music features could be enough to give an initial classification between Rush albums. To be able to easily incoroporate all these features in my classification, I used a principal component analysis to further explore the data. A principal component analysis reduces the dimensionality of a dataset (my initial dataset is in this case 8-dimensional) by breaking it down into multiple principal components, where the first principal component captures most information (information from all dimensions of the initial set!). Each next principal component captures less and less information.
 Firstly, I analyzed all albums of Rush. The values of the first (i.e. most informative) principal component plotted against each album is shown below:
 
-```{r liveclassification}
+```{r liveclassification, fig.width = 9}
 rush_features_by_album$album_type <- "Live"
 rush_features_by_album$album_type[rush_studioalbum_idx] <- "Studio"
 rush_features_by_album$album_type[c(18, 25, 29)] <- "Compilation"
@@ -124,7 +124,7 @@ ggplot(mapping=aes(x=rush_album_names, y=rush_albums_pca$x[,1], fill=rush_featur
 
 We can see that this principal component classifies all live-albums of Rush perfectly. However, as the first principal compment captures the most information of the entire dataset, I will now perform another PCA on only the studio albums for more accurate comparison.
 
-```{r studio_pca, fig.width=7.2, fig.height=9}
+```{r studio_pca, fig.width=7.7, fig.height=9}
 rush_features_by_stalbum <- rush_features_by_album %>% filter(is_studio)
 rush_stalbums_pca <- prcomp(rush_features_by_stalbum[c(10:16)])
 rush_stalbums_pc <- data.frame(rush_stalbums_pca$x)
@@ -152,6 +152,7 @@ ggplot(rush_stalbums_pc.m,
   xlab("Studio Album") +
   ggtitle("Principal Component Analysis of Rush' studio albums")
 ```
+
 Looking at the first four principal components we can see that indeed the first one captures the most radical changes across albums. Furthermore, it looks like these principal components divide Rush' discography up in about 5 different eras. The next step will be to perform an actual clustering of these data and evaluate whether we need any more data to cluster the studio albums
 
 
