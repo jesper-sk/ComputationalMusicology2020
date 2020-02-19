@@ -3,6 +3,7 @@ title: "Portfolio plan: Analysis of Rush"
 output:
   github_document: default
   html_document: default
+runtime: shiny
 ---
 
 ```{r setup, include=FALSE, eval=TRUE}
@@ -16,6 +17,7 @@ library(dplyr)
 library(ggplot2)
 library(reshape2)
 library(dbscan)
+library(factoextra)
 
 # Set Spotify access variables (every time)
 rm(list = ls())
@@ -27,8 +29,6 @@ set_spotify_ID()
 ```
 
 __Computational Musicology 2020__
-
-__Jesper Kuiper, 12984787__
 
 The Canadian band [Rush](https://bit.ly/2HkT2Sx) is at its heart a rock band. However, during the extensive lifetime of Rush, its music found a lot of influence from a wide scope of genres and music styles. With a lifespan of more than 40 years and a total of 19 studio albums, a lot has changed from begin to end. 
 In this portfolio, I will try to analyze the way Rush's music changed over the years, and I will try to determine different style periods accross its albums. Furthermore, I will look at how different genres apply to different eras of Rush. 
@@ -128,13 +128,15 @@ We can see that this principal component classifies all live-albums of Rush perf
 rush_features_by_stalbum <- rush_features_by_album %>% filter(is_studio)
 rush_stalbums_pca <- prcomp(rush_features_by_stalbum[c(10:16)])
 rush_stalbums_pc <- data.frame(rush_stalbums_pca$x)
-rush_stalbums_pc.cluster <- dbscan(rush_stalbums_pca$x, 1, 3)
+rush_stalbums_pc.cluster <- kmeans(rush_stalbums_pca$x, 4)
+
+
 
 rush_stalbums_pc$cluster <- rush_stalbums_pc.cluster$cluster
 rush_stalbums_pc$album_name <- rush_features_by_stalbum$album_name
 rush_stalbums_pc$album_idx <- c(1:nrow(rush_stalbums_pc))
 
-rush_stalbums_pc.m <- melt(rush_stalbums_pc, id.vars= c("album_idx", "cluster", "album_name"), measure.vars=c("PC1", "PC2", "PC3", "PC4"))
+rush_stalbums_pc.m <- melt(rush_stalbums_pc, id.vars= c("album_idx", "cluster", "album_name"), measure.vars=c("PC1", "PC2", "PC3"))
 
 rush_stalbum_names <- factor(rush_stalbums_pc$album_name, levels=rush_stalbums_pc$album_name)
 
@@ -155,5 +157,8 @@ ggplot(rush_stalbums_pc.m,
 
 Looking at the first four principal components we can see that indeed the first one captures the most radical changes across albums. Furthermore, it looks like these principal components divide Rush' discography up in about 5 different eras. The next step will be to perform an actual clustering of these data and evaluate whether we need any more data to cluster the studio albums
 
+```{r clusterplot}
+fviz_cluster(rush_stalbums_pc.cluster, data=rush_stalbums_pc[,-c(9)])
+```
 
 ###### _to be continued..._

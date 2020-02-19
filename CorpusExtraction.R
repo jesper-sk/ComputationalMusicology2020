@@ -76,6 +76,9 @@ genre_symphmetal <- get_playlist_audio_features('Diron Donadel', '1JnMmes2yEHNvS
   #Getting boolean if studio album in ^^
   rush_features_by_album$is_studio <- FALSE
   rush_features_by_album[rush_studioalbum_idx,]$is_studio <- TRUE
+  
+  #Getting rush features
+  rush_features <- (rush %>% filter(album_id != "3U6vR85uJOAT08DLnJhZhH"))[,c(9,10,14,15,16,17,18,19)]
 
 
 # In the end
