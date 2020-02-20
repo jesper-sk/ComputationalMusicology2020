@@ -1,59 +1,192 @@
 ---
-title: "ShinyTest"
-author: "Jesper"
-date: "2/19/2020"
-output: html_document
-runtime: shiny
+title: "A musical analysis of Rush"
+output: 
+  flexdashboard::flex_dashboard:
+    #orientation: columns
+    #vertical_layout: scroll
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
+
+# Load libraries (every time)
+
+library(tidyverse)
+library(flexdashboard)
+library(spotifyr)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(dbscan)
+library(factoextra)
+library(plotly)
+
+# Set Spotify access variables (every time)
+rm(list = ls())
+
+load("Corpus.RData")
+load("spotify_env.RData")
+
+set_spotify_ID()
+```
+Introduction
+===
+
+Column
+---
+
+### The Canadian Rock, Metal and What Have You band
+The Canadian band [Rush](https://bit.ly/2HkT2Sx) is at its heart a rock band. However, during the extensive lifetime of Rush, its music found a lot of influence from a wide scope of genres and music styles. With a lifespan of more than 40 years and a total of 19 studio albums, a lot has changed from begin to end. 
+In this portfolio, I will try to analyze the way Rush's music changed over the years, and I will try to determine different style periods accross its albums. Furthermore, I will look at how different genres apply to different eras of Rush. 
+
+Column
+---
+
+### The Corpora 
+Of course, the most important corpus I will use is that containing the audio features of the entire discography of Rush itself. Upon initial inspection, I decided to remove the album "2112 - 40 Years Closer: A Q&A With Alex Lifeson And Terry Brown Commentary" as it contains commentary and is thus not relevant to my analysis. 
+Furthermore, I looked at different genres that are said to be part of at least some era of Rush. For each of these genres I collected the audio features of a playlist that seemed most representative for that genre. I chose playlists of the following genres:
+
+ * Rock:
+    + 70s Rock Anthems
+    + 80s Rock Anthems
+    + 90s Rock Anthems
+    + 00s Rock Anthems
+ * Progressive Rock (user-made playlist)
+ * Pop Rock (Pop Rock Shot)
+ * Reggae (Reggae Classics)
+ * New Wave (Is it New Wave?)
+ * Jazz (Jazz Classics)
+ * Metal (Metal Essentials)
+ * Symphonic Metal (user-made playlist)
+ 
+I chose a total of four playlists for the Rock genre, so that I can analyse whether Rush followed the general trend of rock music through the years. 
+
+Album Classification {.storyboard}
+===
+
+### First, I performed an initial analysis of the basic features of the studio albums
+```{r plot, include=TRUE, fig.align="center"}
+plot <-
+rush_features_by_album %>% 
+  filter(is_studio) %>% 
+    ggplot(aes(x=studioalbum_idx)) +
+      geom_line(aes(y=danceability, colour="danceability")) + 
+      geom_line(aes(y=energy, colour="energy")) + 
+      geom_line(aes(y=speechiness, colour="speechiness")) + 
+      geom_line(aes(y=acousticness, colour="acousticness")) + 
+      geom_line(aes(y=instrumentalness, colour="instrumentalness")) + 
+      geom_line(aes(y=liveness, colour="liveness")) + 
+      geom_line(aes(y=valence, colour="valence")) + 
+      scale_x_continuous(
+        name="Studio album idx",
+        breaks=c(1:length(rush_studioalbum_idx)), 
+        labels=c(1:length(rush_studioalbum_idx)),
+        limits=c(1,20)) +
+      scale_y_continuous(
+        name="Value",
+        breaks=c(0:10)/10, 
+        labels=c(0:10)/10,
+        limits=c(0,1)) +
+      ggtitle("Mean of music features per studio album") +
+      labs(color="Property")
+
+ggplotly(plot)
 ```
 
-This R Markdown document is made interactive using Shiny. Unlike the more traditional workflow of creating static reports, you can now create documents that allow your readers to change the assumptions underlying your analysis and see the results immediately. 
+***
 
-To learn more, see [Interactive Documents](http://rmarkdown.rstudio.com/authoring_shiny.html).
+I analyzed the audio features of each studio album of Rush, to see whether there are some easily spottable trends in there. The studio albums are, in order of release date:
 
-## Inputs and Outputs
+1. Rush (1974)
+2. Fly By Night (1975)
+3. Caress of Steel (1975)
+4. 2112 (1976)
+5. A Farewell to Kings (1977)
+6. Hemispheres (1978)
+7. Permanent Waves (1980)
+8. Moving Pictures (1981)
+9. Signals (1982)
+10. Grace Under Pressure (1984)
+11. Power Windows (1985)
+12. Hold Your Fire (1987)
+13. Presto (1989)
+14. Roll The Bones (1991)
+15. Counterparts (1993)
+16. Test For Echo (1997)
+17. Vapor Trails (2002)
+19. Snakes & Arrows (2007)
+20. Clockwork Angels (2012)
 
-You can embed Shiny inputs and outputs in your document. Outputs are automatically updated whenever inputs change.  This demonstrates how a standard R plot can be made interactive by wrapping it in the Shiny `renderPlot` function. The `selectInput` and `sliderInput` functions create the input widgets used to drive the plot.
+This initial plot looks promising; we can see at least the _energy_, _valence_ and _danceability_ following some kind of a pattern here. Interestingly, we can see a dip in _energy_ and a peak in both _danceability_ and _valence_ at the 13th studio album. It seems like Rush tried to do something different in that album. This could indeed be what happened, as this album - Presto - wasn't received very well by the general public. It seems Rush learned from this, as, according to my plot, they seem to return to their 'roots' in their later albums. 
 
-```{r eruptions, echo=FALSE}
-inputPanel(
-  selectInput("n_breaks", label = "Number of bins:",
-              choices = c(10, 20, 35, 50), selected = 20),
-  
-  sliderInput("bw_adjust", label = "Bandwidth adjustment:",
-              min = 0.2, max = 2, value = 1, step = 0.2)
-)
+### These features proved promising; so I proceded to do a principal component analysis of all Rush' albums.
 
-renderPlot({
-  hist(faithful$eruptions, probability = TRUE, breaks = as.numeric(input$n_breaks),
-       xlab = "Duration (minutes)", main = "Geyser eruption duration")
-  
-  dens <- density(faithful$eruptions, adjust = input$bw_adjust)
-  lines(dens, col = "blue")
-})
+```{r liveclassification, fig.width = 9}
+rush_features_by_album$album_type <- "Live"
+rush_features_by_album$album_type[rush_studioalbum_idx] <- "Studio"
+rush_features_by_album$album_type[c(18, 25, 29)] <- "Compilation"
+rush_albums_pca <- prcomp(rush_features_by_album[c(10:16)])
+rush_album_names <- factor(rush_features_by_album$album_name, levels=rush_features_by_album$album_name)
+ggplot(mapping=aes(x=rush_album_names, y=rush_albums_pca$x[,1], fill=rush_features_by_album$album_type)) + 
+  geom_col() + 
+  xlab("Album name") + 
+  ylab("First principal component value") + 
+  ggtitle("Principal Component Analysis of all Rush' albums") +
+  labs(fill="Album type") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-## Embedded Application
+***
 
-It's also possible to embed an entire Shiny application within an R Markdown document using the `shinyAppDir` function. This example embeds a Shiny application located in another directory:
+The results as shown before implies that there is a good chance the these music features could be enough to give an initial classification between Rush albums. To be able to easily incoroporate all these features in my classification, I used a principal component analysis to further explore the data. A principal component analysis reduces the dimensionality of a dataset (my initial dataset is in this case 8-dimensional) by breaking it down into multiple principal components, where the first principal component captures most information (information from all dimensions of the initial set!). Each next principal component captures less and less information.
+Firstly, I analyzed all albums of Rush. This graph represents the values of the first (i.e. most informative) principal component plotted against album.
 
-```{r tabsets, echo=FALSE}
-shinyAppDir(
-  system.file("examples/06_tabsets", package = "shiny"),
-  options = list(
-    width = "100%", height = 550
-  )
-)
+We can see that this principal component classifies all live-albums of Rush perfectly. However, as the first principal compment captures the most information of the entire dataset, I will now perform another PCA on only the studio albums for more accurate comparison.
+
+### This proved to be effective to classify studio albums vs. live albums, so I now did a PCA on only Rush' studio albums.
+
+```{r studio_pca, fig.width = 9}
+rush_features_by_stalbum <- rush_features_by_album %>% filter(is_studio)
+rush_stalbums_pca <- prcomp(rush_features_by_stalbum[c(10:16)])
+rush_stalbums_pc <- data.frame(rush_stalbums_pca$x)
+rush_stalbums_pc.cluster <- kmeans(rush_stalbums_pca$x, 4)
+
+
+
+rush_stalbums_pc$cluster <- rush_stalbums_pc.cluster$cluster
+rush_stalbums_pc$album_name <- rush_features_by_stalbum$album_name
+rush_stalbums_pc$album_idx <- c(1:nrow(rush_stalbums_pc))
+
+rush_stalbums_pc.m <- melt(rush_stalbums_pc, id.vars= c("album_idx", "cluster", "album_name"), measure.vars=c("PC1", "PC2", "PC3", "PC4"))
+
+rush_stalbum_names <- factor(rush_stalbums_pc$album_name, levels=rush_stalbums_pc$album_name)
+
+#ggplot(rush_stalbums_pc, aes(x=PC1, y=PC2, colour=as.character(cluster), size=4)) + geom_point()
+
+ggplot(rush_stalbums_pc.m, 
+       aes(x=reorder(album_name, album_idx),
+           y=value,
+           fill=variable)) +
+  geom_bar(stat="identity") +
+  facet_wrap(~ variable, ncol=2) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(legend.position="none") +
+  ylab("Principal Component value") +
+  xlab("Studio Album") +
+  ggtitle("Principal Component Analysis of Rush' studio albums")
 ```
 
-Note the use of the `height` parameter to determine how much vertical space the embedded application should occupy.
+***
 
-You can also use the `shinyApp` function to define an application inline rather then in an external directory.
+Looking at the first four principal components we can see that indeed the first one captures the most radical changes across albums. Furthermore, it looks like these principal components divide Rush' discography up in about 5 different eras. The next step will be to perform an actual clustering of these data and evaluate whether we need any more data to cluster the studio albums
 
-In all of R code chunks above the `echo = FALSE` attribute is used. This is to prevent the R code within the chunk from rendering in the document alongside the Shiny components.
+```{r clusterplot, eval=FALSE}
+fviz_cluster(rush_stalbums_pc.cluster, data=rush_stalbums_pc[,-c(9)])
+```
 
+Genre analysis {.storyboard}
+===
 
+### First page
 
+More to come :)

@@ -41,3 +41,6 @@ vignettes/*.pdf
 # Spotify ID RData
 spotify_setenvlib.R
 spotify_env.RData
+
+# Shiny env
+SetShinyEnv.R
