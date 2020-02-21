@@ -149,15 +149,12 @@ We can see that this principal component classifies all live-albums of Rush perf
 rush_features_by_stalbum <- rush_features_by_album %>% filter(is_studio)
 rush_stalbums_pca <- prcomp(rush_features_by_stalbum[c(10:16)])
 rush_stalbums_pc <- data.frame(rush_stalbums_pca$x)
-rush_stalbums_pc.cluster <- kmeans(rush_stalbums_pca$x, 4)
 
 
-
-rush_stalbums_pc$cluster <- rush_stalbums_pc.cluster$cluster
 rush_stalbums_pc$album_name <- rush_features_by_stalbum$album_name
 rush_stalbums_pc$album_idx <- c(1:nrow(rush_stalbums_pc))
 
-rush_stalbums_pc.m <- melt(rush_stalbums_pc, id.vars= c("album_idx", "cluster", "album_name"), measure.vars=c("PC1", "PC2", "PC3", "PC4"))
+rush_stalbums_pc.m <- melt(rush_stalbums_pc, id.vars= c("album_idx", "album_name"), measure.vars=c("PC1", "PC2", "PC3", "PC4"))
 
 rush_stalbum_names <- factor(rush_stalbums_pc$album_name, levels=rush_stalbums_pc$album_name)
 
@@ -180,9 +177,51 @@ ggplot(rush_stalbums_pc.m,
 
 Looking at the first four principal components we can see that indeed the first one captures the most radical changes across albums. Furthermore, it looks like these principal components divide Rush' discography up in about 5 different eras. The next step will be to perform an actual clustering of these data and evaluate whether we need any more data to cluster the studio albums
 
-```{r clusterplot, eval=FALSE}
-fviz_cluster(rush_stalbums_pc.cluster, data=rush_stalbums_pc[,-c(9)])
+### Distance matrix to find location of starting centroids for k-means
+
+```{r matrix}
+row.names(rush_stalbums_pc) <- rush_stalbums_pc$album_name
+
+fviz_dist(
+  get_dist(
+    rush_stalbums_pc[,c(1:7)], 
+    method="pearson"), 
+  order=TRUE, 
+  gradient = list(low = "green", mid="black", high = "red")
+  ) + 
+ggtitle("Distance matrix of Rush albums (pearson distance metric)")
 ```
+
+***
+
+This beatiful QR-like visualizations shows the distance (or invertedly the similarity) between different albums, based on the principal components. For an X and Y-coordinate, the color of the square leading to them represents the distance between these albums. The greener the square is, the closer they are.
+
+It is intereseting to see that, according to this matrix, the albums Presto and Rush are outliers relative to the rest of Rush' discography. This is to be expected, as we saw earlier that Presto was different. Furthermore, the album Rush is Rush' first album, and at that time the band had another drummer. As the drummer that came after this album influenced the musical style of the albums to come, it is not surprising that the album Rush is different.
+
+To give the k-means clustering algorithm the best change of succeeding, I want to initiate the centroids (center of a cluster) somewhere close to the eventual clusters. I can use the distance matrix for this. It would be best to place the centroids somewhere in the middle of a green 'blob'. The bigger the blob, the higher is the chance a cluster will converge to it anyways. I therefore decided to locate my initial centroids at the albums "Signals", "Counterparts", "Power Windows", "Caress of Steel" and "A Farewell To kings".
+
+### Clustering the studio albums with k-means 
+
+```{r cluster, echo=FALSE}
+row.names(rush_stalbums_pc) <- rush_stalbums_pc$album_name
+
+#rush_stalbums_pc.cluster <- kmeans(rush_stalbums_pca$x[,c(1:7)], centers=rush_stalbums_pc[c("Signals", "Caress Of Steel", "A Farewell To Kings", "Counterparts", "Power Windows"),c(1:7)])
+
+rush_stalbums_pc.cluster <-
+  kmeans(
+    rush_features_by_album[rush_features_by_album$is_studio,c(10:16)],
+    centers = rush_features_by_album[c(3,6,12,14,20),c(10:16)]
+  )
+
+plt <- fviz_cluster(rush_stalbums_pc.cluster, data=rush_stalbums_pc[,-c(8)])
+plotly_build(plt)
+```
+
+***
+
+These are the clusters produced with the k-means clustering algorithm. Regarding the labels that are clipping, I had to include them as otherwise you can't see what point represents what album (also on hover). You can remove labels by clicking once on the corresponding [Aa (x,x,NA)] entry in the legend. Unfortunately, plotly doesn't support removing labels beforehand with this cluster plot.
+
+At first hand, the clusters seem surprising. For instance, it looks like Power Windows is way closer to Moving Pictures from another cluster that it is to Hold Your Fire or Clockwork Angels, the albums it shares a cluster with. However this is not neccesarily the case as the two dimiensions that are plotted here are only able to reflect 22% and 12% of the information. The cluster algorithm however, uses 100% of all information. Imagine the z-axis pointing upwards from the screen. These clusters could then be explained by the fact that the points from cluster 4 lay way higher on the z-axis than the points in cluster 3. 
 
 Genre analysis {.storyboard}
 ===
