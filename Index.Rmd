@@ -415,6 +415,8 @@ data <- get(songs[5])
 
 I tried to look at what makes each cluster destinctive from the rest, by taking a specific song from all clusters and comparing the self-similarity matrices with each other. These are shown to the left. Unfortunately, even though the individual matrices are very pretty indeed, I couldn't find any distinctive differences between any of the matrices. 
 
+New {.storyboard}
+===
 
 ### Comparing timbre features across clusters
 ```{r, echo=FALSE}
@@ -438,7 +440,10 @@ rush.ca %>%
     ggtitle("")
 ```
 
+
 ***
+
+For information about the clusters, please look at Album Classification.
 
 I've plotted the three timbre features that varied the most across the different clusters, where c02 seems to have the most variance. With this plots, do keep in mind that all clusters have variable size. 
 
