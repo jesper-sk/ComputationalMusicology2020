@@ -30,157 +30,6 @@ load("spotify_env.RData")
 
 set_spotify_ID()
 ```
-New {.storyboard}
-===
-
-
-### Comparing typical songs from all clusters to each other
-
-```{r timbreetc, echo=FALSE}
-songs <- c(
-  '4Ilt9N2XASXY60DSEitW5K', #AFTK
-  '2P0x26YpGzXDddtQEc171e', #Marathon
-  '1gkn90ExKRNAOlhDs4RoW0', #Working Man
-  '341PPpWkAUkEQeIdQQDGTo', #Jacob's Ladder
-  '0Z0s6dw0zw2ENU1gVjlLV6'  #Subdivisions
-)
-
-names <- c(
-  'A Farewell To Kings',
-  'Marathon',
-  'Working Man',
-  "Jacob's Ladder",
-  'Subdivisions'
-)
-
-get <- function(id){
-  res <-
-    get_tidy_audio_analysis(id) %>% 
-    compmus_align(bars, segments) %>% 
-    select(bars) %>% unnest(bars) %>% 
-    mutate(
-        pitches = 
-            map(segments, 
-                compmus_summarise, pitches, 
-                method = 'rms', norm = 'euclidean')) %>% 
-    mutate(
-        timbre = 
-            map(segments, 
-                compmus_summarise, timbre, 
-                method = 'rms', norm = 'euclidean'))
-  return(res)
-}
-
-get_ssm <- function(data){
-  data %>% 
-    compmus_self_similarity(timbre, 'cosine') %>% 
-    ggplot(
-        aes(
-            x = xstart + xduration / 2, 
-            width = xduration,
-            y = ystart + yduration / 2,
-            height = yduration,
-            fill = d)) + 
-    geom_tile() +
-    coord_fixed() +
-    scale_fill_viridis_c(option = 'E', guide = 'none') +
-    theme_classic() +
-    labs(x = '', y = '')
-}
-
-matrices <- c()
-
-data <- get(songs[1])
-  data %>% 
-  compmus_self_similarity(timbre, 'cosine') %>% 
-  ggplot(
-      aes(
-          x = xstart + xduration / 2, 
-          width = xduration,
-          y = ystart + yduration / 2,
-          height = yduration,
-          fill = d)) + 
-  geom_tile() +
-  coord_fixed() +
-  scale_fill_viridis_c(option = 'E') +
-  theme_classic() +
-  labs(x = '', y = '') + 
-  ggtitle(names[1])
-  
-data <- get(songs[2])
-  data %>% 
-  compmus_self_similarity(timbre, 'cosine') %>% 
-  ggplot(
-      aes(
-          x = xstart + xduration / 2, 
-          width = xduration,
-          y = ystart + yduration / 2,
-          height = yduration,
-          fill = d)) + 
-  geom_tile() +
-  coord_fixed() +
-  scale_fill_viridis_c(option = 'E') +
-  theme_classic() +
-  labs(x = '', y = '') + 
-  ggtitle(names[2])
-  
-data <- get(songs[3])
-  data %>% 
-  compmus_self_similarity(timbre, 'cosine') %>% 
-  ggplot(
-      aes(
-          x = xstart + xduration / 2, 
-          width = xduration,
-          y = ystart + yduration / 2,
-          height = yduration,
-          fill = d)) + 
-  geom_tile() +
-  coord_fixed() +
-  scale_fill_viridis_c(option = 'E') +
-  theme_classic() +
-  labs(x = '', y = '') + 
-  ggtitle(names[3])
-  
-data <- get(songs[4])
-  data %>% 
-  compmus_self_similarity(timbre, 'cosine') %>% 
-  ggplot(
-      aes(
-          x = xstart + xduration / 2, 
-          width = xduration,
-          y = ystart + yduration / 2,
-          height = yduration,
-          fill = d)) + 
-  geom_tile() +
-  coord_fixed() +
-  scale_fill_viridis_c(option = 'E') +
-  theme_classic() +
-  labs(x = '', y = '') + 
-  ggtitle(names[4])
-  
-data <- get(songs[5])
-  data %>% 
-  compmus_self_similarity(timbre, 'cosine') %>% 
-  ggplot(
-      aes(
-          x = xstart + xduration / 2, 
-          width = xduration,
-          y = ystart + yduration / 2,
-          height = yduration,
-          fill = d)) + 
-  geom_tile() +
-  coord_fixed() +
-  scale_fill_viridis_c(option = 'E') +
-  theme_classic() +
-  labs(x = '', y = '') + 
-  ggtitle(names[5])
-
-``` 
-
-***
-
-I tried to look at what makes each cluster destinctive from the rest, by taking a specific song from all clusters and comparing the self-similarity matrices with each other. These are shown to the left. Unfortunately, even though the individual matrices are very pretty indeed, I couldn't find any distinctive differences between any of the matrices. 
-
 
 Introduction
 ===
@@ -376,6 +225,226 @@ These are the clusters produced with the k-means clustering algorithm. Regarding
 
 At first hand, the clusters seem surprising. For instance, it looks like Power Windows is way closer to Moving Pictures from another cluster that it is to Hold Your Fire or Clockwork Angels, the albums it shares a cluster with. However this is not neccesarily the case as the two dimiensions that are plotted here are only able to reflect 22% and 12% of the information. The cluster algorithm however, uses 100% of the information. Imagine the z-axis pointing upwards from the screen. These clusters could then be explained by the fact that the points from cluster 4 lay way higher on the z-axis than the points in cluster 3. 
 
+### Album clustering: Conclusion
+```{r clusters}
+rush_albums_clustered <- rush_stalbums_pc %>% 
+  select(album_name, album_idx) %>% 
+  mutate(cluster = rush_stalbums_pc.cluster$cluster)
+
+rownames(rush_albums_clustered) <- rush_albums_clustered$album_name
+
+rush_clustered <- rush %>% filter(is_studio)
+
+clustercol <- c()
+for(i in 1:nrow(rush_clustered)){
+  clustercol[i] <- rush_albums_clustered[rush_clustered[i,]$album_name,]$cluster
+}
+
+rush_clustered$cluster <- clustercol
+
+#smol <- rush_clustered %>% 
+#  group_by(album_name) %>% 
+#  slice(1) %>% 
+#  rename(track.uri = track_uri) %>% 
+#  add_audio_analysis() %>% 
+#  ungroup() %>% 
+#  arrange(cluster)
+
+
+rush.ca <- rush_clustered %>% 
+  rename(track.uri = track_uri) %>% 
+  add_audio_analysis()%>% 
+  arrange(cluster)
+
+knitr::kable(
+  rush_albums_clustered %>% 
+    group_by(album_name) %>% 
+    arrange(cluster) %>% 
+    select("Album name" = album_name, "Cluster" = cluster, "Release order" = album_idx) 
+)
+```
+
+***
+
+Here, we can see the cluster sets that came from my clustering. As the cluster visualization from the previous page only offers a limited view of the performance of my clustering, I will now look at timbral and chordal analyses to see whether the clustering seems any good and, if so, whether I can spot distinctive properties of different clusters.
+
+### (SUBJECT TO CHANGE) Comparing typical songs from all clusters to each other
+
+```{r timbreetc, echo=FALSE, eval=TRUE}
+songs <- c(
+  '4Ilt9N2XASXY60DSEitW5K', #AFTK
+  '2P0x26YpGzXDddtQEc171e', #Marathon
+  '1gkn90ExKRNAOlhDs4RoW0', #Working Man
+  '341PPpWkAUkEQeIdQQDGTo', #Jacob's Ladder
+  '0Z0s6dw0zw2ENU1gVjlLV6'  #Subdivisions
+)
+
+names <- c(
+  'A Farewell To Kings',
+  'Marathon',
+  'Working Man',
+  "Jacob's Ladder",
+  'Subdivisions'
+)
+
+get <- function(id){
+  res <-
+    get_tidy_audio_analysis(id) %>% 
+    compmus_align(bars, segments) %>% 
+    select(bars) %>% unnest(bars) %>% 
+    mutate(
+        pitches = 
+            map(segments, 
+                compmus_summarise, pitches, 
+                method = 'rms', norm = 'euclidean')) %>% 
+    mutate(
+        timbre = 
+            map(segments, 
+                compmus_summarise, timbre, 
+                method = 'rms', norm = 'euclidean'))
+  return(res)
+}
+
+get_ssm <- function(data){
+  data %>% 
+    compmus_self_similarity(timbre, 'cosine') %>% 
+    ggplot(
+        aes(
+            x = xstart + xduration / 2, 
+            width = xduration,
+            y = ystart + yduration / 2,
+            height = yduration,
+            fill = d)) + 
+    geom_tile() +
+    coord_fixed() +
+    scale_fill_viridis_c(option = 'E', guide = 'none') +
+    theme_classic() +
+    labs(x = '', y = '')
+}
+
+matrices <- c()
+
+data <- get(songs[1])
+  data %>% 
+  compmus_self_similarity(timbre, 'cosine') %>% 
+  ggplot(
+      aes(
+          x = xstart + xduration / 2, 
+          width = xduration,
+          y = ystart + yduration / 2,
+          height = yduration,
+          fill = d)) + 
+  geom_tile() +
+  coord_fixed() +
+  scale_fill_viridis_c(option = 'E') +
+  theme_classic() +
+  labs(x = '', y = '') + 
+  ggtitle(names[1])
+  
+data <- get(songs[2])
+  data %>% 
+  compmus_self_similarity(timbre, 'cosine') %>% 
+  ggplot(
+      aes(
+          x = xstart + xduration / 2, 
+          width = xduration,
+          y = ystart + yduration / 2,
+          height = yduration,
+          fill = d)) + 
+  geom_tile() +
+  coord_fixed() +
+  scale_fill_viridis_c(option = 'E') +
+  theme_classic() +
+  labs(x = '', y = '') + 
+  ggtitle(names[2])
+  
+data <- get(songs[3])
+  data %>% 
+  compmus_self_similarity(timbre, 'cosine') %>% 
+  ggplot(
+      aes(
+          x = xstart + xduration / 2, 
+          width = xduration,
+          y = ystart + yduration / 2,
+          height = yduration,
+          fill = d)) + 
+  geom_tile() +
+  coord_fixed() +
+  scale_fill_viridis_c(option = 'E') +
+  theme_classic() +
+  labs(x = '', y = '') + 
+  ggtitle(names[3])
+  
+data <- get(songs[4])
+  data %>% 
+  compmus_self_similarity(timbre, 'cosine') %>% 
+  ggplot(
+      aes(
+          x = xstart + xduration / 2, 
+          width = xduration,
+          y = ystart + yduration / 2,
+          height = yduration,
+          fill = d)) + 
+  geom_tile() +
+  coord_fixed() +
+  scale_fill_viridis_c(option = 'E') +
+  theme_classic() +
+  labs(x = '', y = '') + 
+  ggtitle(names[4])
+  
+data <- get(songs[5])
+  data %>% 
+  compmus_self_similarity(timbre, 'cosine') %>% 
+  ggplot(
+      aes(
+          x = xstart + xduration / 2, 
+          width = xduration,
+          y = ystart + yduration / 2,
+          height = yduration,
+          fill = d)) + 
+  geom_tile() +
+  coord_fixed() +
+  scale_fill_viridis_c(option = 'E') +
+  theme_classic() +
+  labs(x = '', y = '') + 
+  ggtitle(names[5])
+
+``` 
+
+***
+
+I tried to look at what makes each cluster destinctive from the rest, by taking a specific song from all clusters and comparing the self-similarity matrices with each other. These are shown to the left. Unfortunately, even though the individual matrices are very pretty indeed, I couldn't find any distinctive differences between any of the matrices. 
+
+
+### Comparing timbre features across clusters
+```{r, echo=FALSE}
+rush.ca %>% 
+    mutate(
+        timbre =
+            map(
+                segments,
+                compmus_summarise,
+                timbre,
+                method = 'mean')) %>%
+    select(cluster, timbre) %>% 
+    compmus_gather_timbre %>% 
+    filter(basis %in% c("c02", "c03", "c05", "c07")) %>% 
+    ggplot(aes(x = basis, y = value, fill = as.character(cluster))) +
+    geom_violin() +
+    scale_fill_viridis_d() +
+    labs(x = 'Spotify Timbre Coefficients', y = '', fill = 'Cluster') + 
+    facet_wrap(~basis, ncol=4, scales="free_x") +
+    theme(axis.text.x=element_blank(), axis.ticks.x = element_blank()) + 
+    ggtitle("")
+```
+
+***
+
+I've plotted the three timbre features that varied the most across the different clusters, where c02 seems to have the most variance. With this plots, do keep in mind that all clusters have variable size. 
+
+According to the spotify timbre documentation, c02 roughly correlates with the brightness. I'm inclined to believe that this correlation is inversed, ie higher c02 values implies a lower brightness. This is because the cluster with the lowest average brightness, cluster two, consists of two albums in which Rush uses a lot of brighter instruments (for instance, [these](https://open.spotify.com/playlist/35ps4GpYuPuAoiIG6kebAZ?si=dK4GyFCFT4GMZLmnJg7sZg) songs). This is in stark contrast to for instance cluster 4, that have an overall (though subjectively) darker tone (like [these](https://open.spotify.com/playlist/2btSbSR7hE9iHozoK4fG8V?si=2C2pIskmQh-WjFOP1QwiwQ)) 
+
+This inverse correldasdation would also explain the fact that cluster 1 also have a lower c02 value on average. This cluster contains most of the early work of Rush (followed by cluster 2). The singer of Rush is known for a very high pitched voice, however his pitch has lowered through the years quite steeply.
 
 Live vs. Studio
 ===

@@ -1,0 +1,61 @@
+---
+title: "Untitled"
+author: "Jesper"
+date: "3/8/2020"
+output: html_document
+---
+### Song clustering
+
+```{r song, echo=FALSE}
+rush_song_features <- rush %>% 
+  filter(is_studio) %>% 
+  select(album_name, track_name, album_release_date, danceability, energy, key, loudness, mode, speechiness, acousticness, instrumentalness, liveness, valence, tempo)
+
+fviz_dist(
+  get_dist(
+    rush_song_features[,c("danceability", "speechiness", "valence", "energy", "acousticness", "liveness")], 
+    method="pearson"), 
+  order=TRUE, 
+  gradient = list(low = "green", mid="white", high = "red")
+  ) + 
+ggtitle("Distance matrix of Rush albums (pearson distance metric)") +
+theme_minimal()
+
+```
+
+***
+Comment
+
+### Clustering on songs
+
+```{r, echo=FALSE}
+rush_song_features.pr <- prcomp(rush_song_features[,c("danceability", "speechiness", "valence", "energy", "acousticness", "liveness")])
+
+rownames(rush_song_features) <- rush_song_features[,2]
+
+
+rush_song_features.cluster <-
+  kmeans(
+    rush_song_features.pr$x[,c(1:4)],
+    centers = 6
+  )
+
+plt <- fviz_cluster(rush_song_features.cluster, data=rush_song_features[,c("danceability", "speechiness", "valence", "energy", "acousticness", "liveness")])
+plt
+```
+
+***
+
+Comment
+
+### Album distribution over clusters
+
+```{r, echo=FALSE}
+rush_song_features$cluster <- rush_song_features.cluster$cluster
+rush_song_features %>% 
+  ggplot(aes(album_name)) +
+  geom_histogram(stat="count") +
+  facet_wrap(~cluster, ncol=3) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
