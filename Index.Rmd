@@ -4,6 +4,7 @@ output:
   flexdashboard::flex_dashboard:
     #orientation: columns
     #vertical_layout: scroll
+    theme: cerulean
 ---
 
 ```{r setup, include=FALSE}
@@ -30,6 +31,14 @@ load("spotify_env.RData")
 
 set_spotify_ID()
 ```
+
+<!--
+TODO
+  - Kijken of PCA wat heeft toegevoegd aan live/studio classificatie
+  - Chroma feature analysis van clusters doen zoals nu de timbre (IPV self similarity?)
+  - Kijken of andere classificatie door delta en deltadelta gebruiken?
+  - tempoanalyseplot mooi kleurschema uitkiezen
+-->
 
 Introduction
 ===
@@ -253,7 +262,7 @@ rush_clustered$cluster <- clustercol
 
 rush.ca <- rush_clustered %>% 
   rename(track.uri = track_uri) %>% 
-  add_audio_analysis()%>% 
+  add_audio_analysis() %>% 
   arrange(cluster)
 
 knitr::kable(
@@ -415,9 +424,6 @@ data <- get(songs[5])
 
 I tried to look at what makes each cluster destinctive from the rest, by taking a specific song from all clusters and comparing the self-similarity matrices with each other. These are shown to the left. Unfortunately, even though the individual matrices are very pretty indeed, I couldn't find any distinctive differences between any of the matrices. 
 
-New {.storyboard}
-===
-
 ### Comparing timbre features across clusters
 ```{r, echo=FALSE}
 rush.ca %>% 
@@ -437,19 +443,185 @@ rush.ca %>%
     labs(x = 'Spotify Timbre Coefficients', y = '', fill = 'Cluster') + 
     facet_wrap(~basis, ncol=4, scales="free_x") +
     theme(axis.text.x=element_blank(), axis.ticks.x = element_blank()) + 
-    ggtitle("")
+    ggtitle("") + 
+    theme_minimal()
 ```
 
 
 ***
 
-For information about the clusters, please look at Album Classification.
-
 I've plotted the three timbre features that varied the most across the different clusters, where c02 seems to have the most variance. With this plots, do keep in mind that all clusters have variable size. 
 
-According to the spotify timbre documentation, c02 roughly correlates with the brightness. I'm inclined to believe that this correlation is inversed, ie higher c02 values implies a lower brightness. This is because the cluster with the lowest average brightness, cluster two, consists of two albums in which Rush uses a lot of brighter instruments (for instance, [these](https://open.spotify.com/playlist/35ps4GpYuPuAoiIG6kebAZ?si=dK4GyFCFT4GMZLmnJg7sZg) songs). This is in stark contrast to for instance cluster 4, that have an overall (though subjectively) darker tone (like [these](https://open.spotify.com/playlist/2btSbSR7hE9iHozoK4fG8V?si=2C2pIskmQh-WjFOP1QwiwQ)) 
+According to the spotify timbre documentation, c02 roughly correlates with the brightness. I'm inclined to believe that this correlation is inversed, i.e. higher c02 values implies a lower brightness. This is because the cluster with the lowest average brightness, cluster two, consists of two albums in which Rush uses a lot of brighter instruments (for instance, [these](https://open.spotify.com/playlist/35ps4GpYuPuAoiIG6kebAZ?si=dK4GyFCFT4GMZLmnJg7sZg) songs). This is in stark contrast to for instance cluster 4, that have an overall (though subjectively) darker tone (like [these](https://open.spotify.com/playlist/2btSbSR7hE9iHozoK4fG8V?si=2C2pIskmQh-WjFOP1QwiwQ)) 
 
-This inverse correldasdation would also explain the fact that cluster 1 also have a lower c02 value on average. This cluster contains most of the early work of Rush (followed by cluster 2). The singer of Rush is known for a very high pitched voice, however his pitch has lowered through the years quite steeply.
+This inverse correlation would also explain the fact that cluster 1 also have a lower c02 value on average. This cluster contains most of the early work of Rush (followed by cluster 2). The singer of Rush is known for a very high pitched voice, however his pitch has lowered through the years quite steeply.
+
+New {.storyboard}
+===
+
+### Tempo analysis across clusters
+```{r}
+rush.ca %>% 
+  group_by(cluster) %>% 
+  mutate(tempo_confidence = mean(tempo_confidence)) %>% 
+  mutate(mean_tempo = mean(tempo)) %>% 
+  ggplot() +
+  geom_violin(aes(x=cluster, y=tempo, color=tempo_confidence, fill=0), size=1.25) +
+  geom_point(aes(x=cluster, y=mean_tempo)) +
+  facet_wrap(~cluster, nrow=1, scales="free_x") +
+  #scale_fill_gradient(low='#FF0000', high='#00FF00', limits=c(0,1)) +
+  scale_color_gradientn(colors = c('red', 'orange', 'green'), name="Tempo confidence") +
+  scale_fill_gradient(low="#CAC9FF", high="#CAC9FF", guide="none") +
+  #scale_color_gradient(low="red", high="black", limits=c(0,1), name="Mean tempo confidence") +
+  #scale_color_viridis_c(name="Mean tempo confidence", limits=c(0,1)) +
+  theme_minimal() +
+  xlab("Cluster") +
+  ylab("Tempo") +
+  theme(axis.text.x=element_blank(), axis.ticks.x = element_blank())  
+```
+
+***
+
+Here we can see the distribution of different tempi of songs across the different clusters. We can see that the mean tempo lies in the same range for each cluster, namely around 125-135bpm. However, the mean tempo confidence that the spotify API gives for each cluster varies a lot. Spotify has a lot less confidence in its cluster classifications of the first and second cluster, relative to the third, fourth and fifth cluster. I think this is because the songs in the first, second and to a lesser extent the third cluster have a lot more changes in tempo. This is to be expected, as these clusters contain most of the albums that are commonly seen as the most progressive. 
+
+To validate this, I will now quickly look at the differences in (different types of) novelties for each cluster.
+
+### Timbre deltas analysis
+```{r}
+rush.ca.timbredeltas <- rush.ca %>% 
+    mutate(
+        segments =
+            map(
+                segments,
+                mutate,
+                timbre = map2(timbre, lag(timbre), `-`))) %>% 
+    mutate(
+        timbre =
+            map(
+                segments,
+                compmus_summarise, timbre,
+                method = 'mean', na.rm = TRUE)) %>%
+    mutate_at(vars(timbre), map, bind_rows) %>% 
+    unnest(cols = c(timbre)) %>% 
+    melt(
+      id.vars = "cluster",
+      measure.vars = c("c01", "c02", "c03", "c04", "c05", "c06", "c07", "c08", "c09", "c10", "c11", "c12")
+    )
+```
+
+```{r fig.width=10}
+rush.ca.timbredeltas %>% 
+  filter(variable %in% c("c01", "c02", "c03", "c04")) %>% 
+  ggplot(aes(x=variable, y=value, fill=as.character(cluster))) +
+  geom_violin() +
+  scale_fill_viridis_d(name="Cluster", guide="none") +
+  theme_minimal() +
+  facet_wrap(~variable, ncol=4, scales="free_x") +
+  theme(axis.text.x=element_blank(), axis.ticks.x = element_blank()) +
+  ggtitle("Average timbre deltas for each cluster")
+
+rush.ca.timbredeltas %>% 
+  filter(variable %in% c("c05", "c06", "c07", "c08")) %>% 
+  ggplot(aes(x=variable, y=value, fill=as.character(cluster))) +
+  geom_violin() +
+  scale_fill_viridis_d(name="Cluster", guide="none") +
+  theme_minimal() +
+  facet_wrap(~variable, ncol=4, scales="free_x") +
+  theme(axis.text.x=element_blank(), axis.ticks.x = element_blank())
+
+rush.ca.timbredeltas %>% 
+  filter(variable %in% c("c09", "c10", "c11", "c12")) %>% 
+  ggplot(aes(x=variable, y=value, fill=as.character(cluster))) +
+  geom_violin() +
+  scale_fill_viridis_d(name="Cluster", guide="none") +
+  theme_minimal() +
+  facet_wrap(~variable, ncol=4, scales="free_x") +
+  theme(axis.text.x=element_blank(), axis.ticks.x = element_blank())
+```
+
+***
+
+We can see that, even though there is some variance in a couple of timbre features, none of these seem significant. Cluster one seems to have a little higher peaks across timbre in general, but that is not very significant as well. This leads me to believe that this clustering might not be the best. Therefore next week, I will perform a new clustering using deltas and deltadeltas of chroma and timbre and see whether this results in a very differnt clustering. 
+
+```{r chromadeltas, fig.height=15, fig.width=10, eval=FALSE}
+rush.ca.chromadeltas <- rush.ca %>% 
+    mutate(
+        segments = 
+            map2(segments, key, compmus_c_transpose)) %>% 
+    mutate(
+        segments = 
+            map(
+                segments, 
+                mutate, 
+                pitches = map(pitches, compmus_normalise, 'manhattan'))) %>% 
+    mutate(
+        segments =
+            map(
+                segments,
+                mutate,
+                pitches = map2(pitches, lag(pitches), `-`))) %>% 
+    mutate(
+        pitches =
+            map(segments,
+                compmus_summarise, pitches,
+                method = 'mean', na.rm = TRUE)) %>%
+    mutate_at(vars(pitches), map, bind_rows) %>% 
+    unnest(cols = c(pitches)) %>% 
+    melt(
+      id.vars = "cluster",
+      measure.vars =  c(
+                        'C', 'C#|Db', 'D', 'D#|Eb',
+                        'E', 'F', 'F#|Gb', 'G',
+                        'G#|Ab', 'A', 'A#|Bb', 'B')
+      )
+
+rush.ca.chromadeltas %>% 
+  ggplot(aes(x=variable, y=value, fill=as.character(cluster))) +
+  geom_violin() +
+  scale_fill_viridis_d(name="Cluster") +
+  facet_wrap(~variable, scales="free_x", ncol=4) +
+  theme_minimal() +
+  theme(axis.text.x=element_blank(), axis.ticks.x = element_blank()) 
+```
+
+```{r timbredeltadeltas, eval=FALSE}
+rush.ca.timbredeltadeltas <- rush.ca %>% 
+    mutate(
+        segments =
+            map(
+                segments,
+                mutate,
+                timbre = map2(timbre, lag(timbre), `-`))) %>% 
+    mutate(
+        segments =
+            map(
+                segments,
+                mutate,
+                timbre = map2(timbre, lag(timbre), `-`))) %>% 
+    mutate(
+        timbre =
+            map(
+                segments,
+                compmus_summarise, timbre,
+                method = 'mean', na.rm = TRUE)) %>%
+    mutate_at(vars(timbre), map, bind_rows) %>% 
+    unnest(cols = c(timbre)) %>% 
+    melt(
+      id.vars = "cluster",
+      measure.vars = c("c01", "c02", "c03", "c04", "c05", "c06", "c07", "c08", "c09", "c10", "c11", "c12")
+    )
+```
+
+```{r timbredeltadeltaplot, fig.height=15, fig.width=10, eval=FALSE}
+rush.ca.timbredeltadeltas %>% 
+  ggplot(aes(x=variable, y=value, fill=as.character(cluster))) +
+  geom_violin() +
+  scale_fill_viridis_d(name="Cluster") +
+  facet_wrap(~variable, scales="free_x", ncol=4) +
+  theme_minimal() +
+  theme(axis.text.x=element_blank(), axis.ticks.x = element_blank()) 
+```
+
 
 Live vs. Studio
 ===

@@ -1,7 +1,7 @@
 ---
-title: "Week 10 · Key and Chord Estimation"
+title: "Week 11 · Classification"
 author: "John Ashley Burgoyne"
-date: "4 March 2020"
+date: "11 March 2020"
 output: 
     html_notebook:
         theme: flatly
@@ -9,235 +9,248 @@ output:
 
 ## Set-up
 
-Install the updated `compmus` package by running `remotes::install_github('jaburgoyne/compmus')`. 
-
 ```{r}
 library(tidyverse)
 library(spotifyr)
 library(compmus)
-#source('spotify.R')
+
+load("spotify_env.RData")
+
+set_spotify_ID()
 ```
 
-## Tonal Templates
+## Novelty Functions
 
-The focus of the readings this week were chord and key estimation. One set of standard templates is below: 1--0 coding for the chord templates and the Krumhansl--Kessler key profiles. 
+For novelty functions, we want to work directly with the segments, and not summarise them at higher levels like Spotify's own estimates of bar or beat.
 
 ```{r}
-circshift <- function(v, n) {if (n == 0) v else c(tail(v, n), head(v, -n))}
-                                    
-    # C     C#    D     Eb    E     F     F#    G     Ab    A     Bb    B 
-major_chord <- 
-    c(1,    0,    0,    0,    1,    0,    0,    1,    0,    0,    0,    0)
-minor_chord <- 
-    c(1,    0,    0,    1,    0,    0,    0,    1,    0,    0,    0,    0)
-seventh_chord <- 
-    c(1,    0,    0,    0,    1,    0,    0,    1,    0,    0,    1,    0)
+pata_pata <- 
+    get_tidy_audio_analysis('3uy90vHHATPjtdilshDQDt') %>% 
+    select(segments) %>% unnest(segments)
+```
 
-major_key <- 
-    c(6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88)
-minor_key <-
-    c(6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17)
+We can compute an energy-based novelty function based on Spotify's loudness estimates. The tempo of this piece is about 126 BPM: how well does this technique work?
 
-chord_templates <-
-    tribble(
-        ~name  , ~template,
-        'Gb:7'  , circshift(seventh_chord,  6),
-        'Gb:maj', circshift(major_chord,    6),
-        'Bb:min', circshift(minor_chord,   10),
-        'Db:maj', circshift(major_chord,    1),
-        'F:min' , circshift(minor_chord,    5),
-        'Ab:7'  , circshift(seventh_chord,  8),
-        'Ab:maj', circshift(major_chord,    8),
-        'C:min' , circshift(minor_chord,    0),
-        'Eb:7'  , circshift(seventh_chord,  3),
-        'Eb:maj', circshift(major_chord,    3),
-        'G:min' , circshift(minor_chord,    7),
-        'Bb:7'  , circshift(seventh_chord, 10),
-        'Bb:maj', circshift(major_chord,   10),
-        'D:min' , circshift(minor_chord,    2),
-        'F:7'   , circshift(seventh_chord,  5),
-        'F:maj' , circshift(major_chord,    5),
-        'A:min' , circshift(minor_chord,    9),
-        'C:7'   , circshift(seventh_chord,  0),
-        'C:maj' , circshift(major_chord,    0),
-        'E:min' , circshift(minor_chord,    4),
-        'G:7'   , circshift(seventh_chord,  7),
-        'G:maj' , circshift(major_chord,    7),
-        'B:min' , circshift(minor_chord,   11),
-        'D:7'   , circshift(seventh_chord,  2),
-        'D:maj' , circshift(major_chord,    2),
-        'F#:min', circshift(minor_chord,    6),
-        'A:7'   , circshift(seventh_chord,  9),
-        'A:maj' , circshift(major_chord,    9),
-        'C#:min', circshift(minor_chord,    1),
-        'E:7'   , circshift(seventh_chord,  4),
-        'E:maj' , circshift(major_chord,    4),
-        'G#:min', circshift(minor_chord,    8),
-        'B:7'   , circshift(seventh_chord, 11),
-        'B:maj' , circshift(major_chord,   11),
-        'D#:min', circshift(minor_chord,    3))
+```{r}
+pata_pata %>% 
+    mutate(loudness_max_time = start + loudness_max_time) %>% 
+    arrange(loudness_max_time) %>% 
+    mutate(delta_loudness = loudness_max - lag(loudness_max)) %>% 
+    ggplot(aes(x = loudness_max_time, y = abs(delta_loudness))) +
+    geom_line() +
+    xlim(0, 30) +
+    theme_minimal() +
+    labs(x = 'Time (s)', y = 'Novelty')
+```
 
-key_templates <-
-    tribble(
-        ~name    , ~template,
-        'Gb:maj', circshift(major_key,  6),
-        'Bb:min', circshift(minor_key, 10),
-        'Db:maj', circshift(major_key,  1),
-        'F:min' , circshift(minor_key,  5),
-        'Ab:maj', circshift(major_key,  8),
-        'C:min' , circshift(minor_key,  0),
-        'Eb:maj', circshift(major_key,  3),
-        'G:min' , circshift(minor_key,  7),
-        'Bb:maj', circshift(major_key, 10),
-        'D:min' , circshift(minor_key,  2),
-        'F:maj' , circshift(major_key,  5),
-        'A:min' , circshift(minor_key,  9),
-        'C:maj' , circshift(major_key,  0),
-        'E:min' , circshift(minor_key,  4),
-        'G:maj' , circshift(major_key,  7),
-        'B:min' , circshift(minor_key, 11),
-        'D:maj' , circshift(major_key,  2),
-        'F#:min', circshift(minor_key,  6),
-        'A:maj' , circshift(major_key,  9),
-        'C#:min', circshift(minor_key,  1),
-        'E:maj' , circshift(major_key,  4),
-        'G#:min', circshift(minor_key,  8),
-        'B:maj' , circshift(major_key, 11),
-        'D#:min', circshift(minor_key,  3))
+We can use similar approaches for chromagrams and cepstrograms. In the case of chromagrams, Aitchison's clr transformation gives more sensible differences between time points. Even with these helpful transformations, however, self-similarity matrices tend to be more helpful visualisations of chroma and timbre from the Spotify API.
+
+```{r}
+pata_pata %>% 
+    mutate(pitches = map(pitches, compmus_normalise, 'clr')) %>% 
+    arrange(start) %>% 
+    mutate(pitches = map2(pitches, lag(pitches), `-`)) %>% 
+    compmus_gather_chroma %>% 
+    ggplot(
+        aes(
+            x = start + duration / 2, 
+            width = duration, 
+            y = pitch_class, 
+            fill = pmax(0, value))) + 
+    geom_tile() +
+    scale_fill_viridis_c(option = 'E', guide = 'none') +
+    xlim(0, 30) +
+    labs(x = 'Time (s)', y = NULL, fill = 'Magnitude') +
+    theme_classic()
 ```
 
 
-## Chordograms and Keygrams
+```{r}
+pata_pata %>% 
+    arrange(start) %>% 
+    mutate(timbre = map2(timbre, lag(timbre), `-`)) %>% 
+    compmus_gather_timbre %>% 
+    ggplot(
+        aes(
+            x = start + duration / 2, 
+            width = duration, 
+            y = basis, 
+            fill = pmax(0, value))) + 
+    geom_tile() +
+    scale_fill_viridis_c(option = 'E', guide = 'none') +
+    xlim(0, 30) +
+    labs(x = 'Time (s)', y = NULL, fill = 'Magnitude') +
+    theme_classic()
+```
 
-Armed with these templates, we can make chordograms and keygrams for individual pieces. Similar to previous weeks, we start by choosing a level of hierarchy and then summarise the chroma features a that level. Higher levels like `section` are more appropriate for key profiles; lower levels like `beat` are more appropriate for chord profiles.
 
-The following code fetches the analysis for Zager and Evans's 'In the Year 2525' (1969).
+Find a Spotify track that has a regular tempo but lacks percussion (e.g., much Western classical music), and compute the above three representations. How do they differ from what you see for 'Pata Pata'?
+
+## Tempograms
+
+Spotify does not make the novelty function underlying their own tempo analysis available to the public, but we can still use onsets of every segment to generate Fourier tempograms. The `tempogram()` function from `compmus` generates this automatically from an audio analysis, ready to plot with `geom_raster` (a faster version of `geom_tile` for when every segment has the same length). Here is an example of 'Samba do outro lugar', a track from the Brazilian indie band Graveola that features several tempo and metre alternations.
 
 ```{r}
-twenty_five <- 
-    get_tidy_audio_analysis('5UVsbUV0Kh033cqsZ5sLQi') %>% 
-    compmus_align(sections, segments) %>% 
-    select(sections) %>% unnest(sections) %>% 
+graveola <- get_tidy_audio_analysis('6PJasPKAzNLSOzxeAH33j2')
+```
+
+```{r}
+graveola %>% 
+    tempogram(window_size = 8, hop_size = 1, cyclic = FALSE) %>% 
+    ggplot(aes(x = time, y = bpm, fill = power)) + 
+    geom_raster() + 
+    scale_fill_viridis_c(guide = 'none') +
+    labs(x = 'Time (s)', y = 'Tempo (BPM)') +
+    theme_classic()
+```
+
+The textbook notes that Fourier-based tempograms tend to pick up strongly on tempo harmonics. Wrapping into a cyclic tempogram can be more informative. 
+
+```{r}
+graveola %>% 
+    tempogram(window_size = 8, hop_size = 1, cyclic = TRUE) %>% 
+    ggplot(aes(x = time, y = bpm, fill = power)) + 
+    geom_raster() + 
+    scale_fill_viridis_c(guide = 'none') +
+    labs(x = 'Time (s)', y = 'Tempo (BPM)') +
+    theme_classic()
+```
+
+## Deltas and Delta-Deltas for Playlists (Advanced)
+
+Let's try to identify some of the features that Spotify uses to designate playlists as 'workout' playlists. For a full analysis, we would need to delve deeper, but let's start with a comparison of three playlists: Indie Pop, Indie Party, and Indie Workout. For speed, this example will work with only the first 20 songs from each playlist, but you should feel free to use more if your computer can handle it.
+
+```{r}
+pop <- 
+    get_playlist_audio_features('spotify', '37i9dQZF1DWWEcRhUVtL8n') %>% 
+    slice(1:20) %>% 
+    add_audio_analysis
+party <- 
+    get_playlist_audio_features('spotify', '37i9dQZF1DWTujiC7wfofZ') %>% 
+    slice(1:20) %>% 
+    add_audio_analysis
+workout <- 
+    get_playlist_audio_features('spotify', '37i9dQZF1DXaRL7xbcDl7X') %>% 
+    slice(1:20) %>% 
+    add_audio_analysis
+```
+
+As you think about the rest of this lab session -- and your portfolio -- think about the four kinds of validity that Sturm and Wiggins discussed in our reading for this week. Do these projects have:
+
+  - Statistical validity [somewhat beyond the scope of this course]?
+  - Content validity?
+  - Internal validity?
+  - External validity?
+
+We bind the three playlists together using the trick from Week 7, transpose the chroma vectors to a common tonic using the `compmus_c_transpose` function, and then summarise the vectors like we did when generating chromagrams and cepstrograms. Again, Aitchison's clr transformation can help with chroma.
+
+```{r}
+indie <- 
+    pop %>% mutate(playlist = "Indie Pop") %>% 
+    bind_rows(
+        party %>% mutate(playlist = "Indie Party"),
+        workout %>% mutate(playlist = "Indie Workout")) %>% 
+    mutate(playlist = factor(playlist)) %>% 
+    mutate(
+        segments = 
+            map2(segments, key, compmus_c_transpose)) %>% 
     mutate(
         pitches = 
             map(segments, 
                 compmus_summarise, pitches, 
-                method = 'mean', norm = 'manhattan'))
-    
-```
-
-The new helper function `compmus_match_pitch_template` compares the averaged chroma vectors against templates to yield a chordo- or keygram. The two truck-driver modulations from G-sharp minor through A minor to B-flat minor are clear.
-
-```{r}
-twenty_five %>% 
-    compmus_match_pitch_template(key_templates, 'euclidean', 'manhattan') %>% 
-    ggplot(
-        aes(x = start + duration / 2, width = duration, y = name, fill = d)) +
-    geom_tile() +
-    scale_fill_viridis_c(option = 'E', guide = 'none') +
-    theme_minimal() +
-    labs(x = 'Time (s)', y = '')
-```
-
-Once you have the code running, try the following adaptations.
-
-  - Try summarising the track at different levels of hierarchy (beats, bars, sections), as well as different combinations of summarisation methods and norms, just as previous weeks. The table below repeats the combinations we have considered. 
-  - Try making a chordogram instead of the keygram above.
-  - Replace the key profiles above with Temperley's proposed improvements from the reading this week. (Don't forget to re-run the chunk after you are finished.) Do the revised profiles work any better? Can you think of a way to improve the chord profiles, too?
-  
-
-| Domain                      | Normalisation | Distance  | Summary Statistic |
-| ----------------------------|---------------|-----------|-------------------|
-| Non-negative (e.g., chroma) | Manhattan     | Manhattan | mean              |
-|                             |               | Aitchison | Aitchison centre  |
-|                             | Euclidean     | cosine    | root mean square  |
-|                             |               | angular   | root mean square  |
-|                             | Chebyshev     | [none]    | max               |
-| Full-range (e.g., timbre)   | [none]        | Euclidean | mean              |
-|                             | Euclidean     | cosine    | root mean square  |
-|                             |               | angular   | root mean square  |
-
-
-## Track-Level Summaries
-
-Several students have asked how to incorporate the low-level audio analysis features at the playlist level. Here is one strategy for doing so, which we will extend next week. As an example, let's consider the difference between Spotify's 'Sound of' playlists for bebop and big band.
-
-After loading the playlists, we can use the helper function `add_audio_analysis` to fetch the low-level features for every track. Adding audio analysis for every track is a slow operation, and so for the purposes of this exercise, we will limit ourselves to 30 tracks from each playlist. The results makes heavy use of list-columns, which are discussed in more detail in the optional `purrr` exercise on DataCamp.
-
-```{r message=TRUE}
-bebop <-
-    get_playlist_audio_features(
-        'thesoundsofspotify', 
-        '55s8gstHcaCyfU47mQgLrB') %>% 
-    slice(1:30) %>% 
-    add_audio_analysis()
-bigband <-
-    get_playlist_audio_features(
-        'thesoundsofspotify', 
-        '2cjIvuw4VVOQSeUAZfNiqY') %>% 
-    slice(1:30) %>% 
-    add_audio_analysis()
-jazz <-
-    bebop %>% mutate(genre = "Bebop") %>%
-    bind_rows(bigband %>% mutate(genre = "Big Band"))
-```
-
-For non-vector features, we can use the `summarise_at` command to collect summary statistics like mean and standard deviation.
-
-```{r}
-jazz %>% 
-    mutate(
-        sections = 
-            map(
-                sections, 
-                summarise_at, 
-                vars(tempo, loudness, duration), 
-                list(section_mean = mean, section_sd = sd))) %>% 
-    unnest(sections) %>%
-    ggplot(
-        aes(
-            x = tempo, 
-            y = tempo_section_sd, 
-            colour = genre, 
-            alpha = loudness)) +
-    geom_point(aes(size = duration / 60)) + 
-    geom_rug() + 
-    theme_minimal() +
-    ylim(0, 5) + 
-    labs(
-        x = 'Mean Tempo (bpm)', 
-        y = 'SD Tempo', 
-        colour = 'Genre', 
-        size = 'Duration (min)', 
-        alpha = 'Volume (dBFS)')
-```
-
-When working with vector-valued features like chroma or timbre, we need to use functions from the previous weeks. Here is an example of comparing average timbre coefficients in bebop and big band. Coefficient 6 looks like the most promising marker distinguishing these genres, but we should verify that with cepstrograms and listening tests of specific pieces, supported by the Spotify documentation for its timbre features. 
-
-```{r}
-test <- jazz %>% 
-    mutate(
+                method = 'mean', norm = 'manhattan'),
         timbre =
             map(
                 segments,
-                compmus_summarise,
-                timbre,
-                method = 'mean')) %>%
-    select(genre, timbre) %>% 
-    compmus_gather_timbre 
+                compmus_summarise, timbre,
+                method = 'mean')) %>% 
+    mutate(pitches = map(pitches, compmus_normalise, 'clr')) %>% 
+    mutate_at(vars(pitches, timbre), map, bind_rows) %>% 
+    unnest(cols = c(pitches, timbre))
+```
 
-jazz %>% 
+Although the novelty-based transformations of chroma and timbre features are not always useful for visualisations, they can be very useful for classification (next week). Both 'deltas' and 'delta-deltas', especially for timbre features, are in regular use in music information retrieval. The code example below shows how to compute average *delta* chroma and timbre features instead of the ordinary average. Can you incorporate it into the classifiers above? Can you add delta-deltas, too? Can you use a visualisation to find any patterns in the data?
+
+```{r}
+indie_deltas <-
+    pop %>% mutate(playlist = "Indie Pop") %>% 
+    bind_rows(
+        party %>% mutate(playlist = "Indie Party"),
+        workout %>% mutate(playlist = "Indie Workout")) %>% 
+    mutate(playlist = factor(playlist)) %>% 
     mutate(
+        segments = 
+            map2(segments, key, compmus_c_transpose)) %>% 
+    mutate(
+        segments = 
+            map(
+                segments, 
+                mutate, 
+                pitches = map(pitches, compmus_normalise, 'manhattan'))) %>% 
+    mutate(
+        segments =
+            map(
+                segments,
+                mutate,
+                pitches = map2(pitches, lag(pitches), `-`))) %>% 
+    mutate(
+        segments =
+            map(
+                segments,
+                mutate,
+                timbre = map2(timbre, lag(timbre), `-`))) %>% 
+    mutate(
+        pitches =
+            map(segments,
+                compmus_summarise, pitches,
+                method = 'mean', na.rm = TRUE),
         timbre =
             map(
                 segments,
-                compmus_summarise,
-                timbre,
-                method = 'mean')) %>%
-    select(genre, timbre) %>% 
-    compmus_gather_timbre %>% 
-    ggplot(aes(x = basis, y = value, fill = genre)) +
-    geom_violin() +
-    scale_fill_viridis_d() +
-    labs(x = 'Spotify Timbre Coefficients', y = '', fill = 'Genre')
+                compmus_summarise, timbre,
+                method = 'mean', na.rm = TRUE)) %>%
+    mutate_at(vars(pitches, timbre), map, bind_rows) %>% 
+    unnest(cols = c(pitches, timbre))
+```
+
+```{r}
+indie_deltas <-
+    pop %>% mutate(playlist = "Indie Pop") %>% 
+    bind_rows(
+        party %>% mutate(playlist = "Indie Party"),
+        workout %>% mutate(playlist = "Indie Workout")) %>% 
+    mutate(playlist = factor(playlist)) %>% 
+    mutate(
+        segments = 
+            map2(segments, key, compmus_c_transpose)) %>% 
+    mutate(
+        segments = 
+            map(
+                segments, 
+                mutate, 
+                pitches = map(pitches, compmus_normalise, 'manhattan'))) %>% 
+    mutate(
+        segments =
+            map(
+                segments,
+                mutate,
+                pitches = map2(pitches, lag(pitches), `-`))) %>% 
+    mutate(
+        segments =
+            map(
+                segments,
+                mutate,
+                timbre = map2(timbre, lag(timbre), `-`))) %>% 
+    mutate(
+        pitches =
+            map(segments,
+                compmus_summarise, pitches,
+                method = 'mean', na.rm = TRUE),
+        timbre =
+            map(
+                segments,
+                compmus_summarise, timbre,
+                method = 'mean', na.rm = TRUE)) %>%
+    mutate_at(vars(pitches, timbre), map, bind_rows) %>% 
+    unnest(cols = c(pitches, timbre))
 ```
