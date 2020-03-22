@@ -33,14 +33,9 @@ We can compute an energy-based novelty function based on Spotify's loudness esti
 
 ```{r}
 pata_pata %>% 
-    mutate(loudness_max_time = start + loudness_max_time) %>% 
-    arrange(loudness_max_time) %>% 
-    mutate(delta_loudness = loudness_max - lag(loudness_max)) %>% 
-    ggplot(aes(x = loudness_max_time, y = abs(delta_loudness))) +
-    geom_line() +
-    xlim(0, 30) +
-    theme_minimal() +
-    labs(x = 'Time (s)', y = 'Novelty')
+    mutate(start = start - lag(start)) %>% 
+    mutate(avg_IOI = mean(start, na.rm=TRUE))
+
 ```
 
 We can use similar approaches for chromagrams and cepstrograms. In the case of chromagrams, Aitchison's clr transformation gives more sensible differences between time points. Even with these helpful transformations, however, self-similarity matrices tend to be more helpful visualisations of chroma and timbre from the Spotify API.

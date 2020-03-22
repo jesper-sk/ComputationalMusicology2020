@@ -1,0 +1,423 @@
+---
+title: "Week 12 · Classification and Clustering"
+author: "John Ashley Burgoyne"
+date: "18 March 2020"
+output: 
+    html_notebook:
+        theme: flatly
+---
+
+## Set-up
+
+We will be using the developing `tidymodels` framework this week for integrating with the different machine-learning libraries in a consistent manner. You can install this package from the usual RStudio Tools menu. All of the other tools that are strictly necessary for clustering are available in base R. For full flexibility, however, the `ggdendro`, `protoclust`, and `heatmaply` packages are recommended. If you want to explore further possibilities, look at the `cluster` package.
+
+As you work through this lab, you will occasionally get error messages asking you to install other packages, too. Install whatever R asks for from the Tools menu, and then try running the chunk again.
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(protoclust)
+library(ggdendro)
+library(heatmaply)
+library(spotifyr)
+library(compmus)
+#source('spotify.R')
+```
+
+## Classification
+
+In order to demonstrate some of the principles of classification, we will try to identify some of the features that Spotify uses to designate playlists as 'workout' playlists. For a full analysis, we would need to delve deeper, but let's start with a comparison of three playlists: Indie Pop, Indie Party, and Indie Workout. For speed, this example will work with only the first 20 songs from each playlist, but you should feel free to use more if your computer can handle it.
+
+**After you have this section of the notebook working, try using other combinations of Spotify workout playlists with similarly-named non-workout playlists.**
+
+```{r}
+pop <- 
+    get_playlist_audio_features('spotify', '37i9dQZF1DWWEcRhUVtL8n') %>% 
+    slice(1:20) %>% 
+    add_audio_analysis
+party <- 
+    get_playlist_audio_features('spotify', '37i9dQZF1DWTujiC7wfofZ') %>% 
+    slice(1:20) %>% 
+    add_audio_analysis
+workout <- 
+    get_playlist_audio_features('spotify', '37i9dQZF1DXaRL7xbcDl7X') %>% 
+    slice(1:20) %>% 
+    add_audio_analysis
+```
+
+As you think about this lab session -- and your portfolio -- think about the four kinds of validity that Sturm and Wiggins discussed in our reading for last week. Do these projects have:
+
+  - Statistical validity [somewhat beyond the scope of this course]?
+  - Content validity?
+  - Internal validity?
+  - External validity?
+
+We bind the three playlists together using the trick from Week 7, transpose the chroma vectors to a common tonic using the `compmus_c_transpose` function, and then summarise the vectors like we did when generating chromagrams and cepstrograms. Again, Aitchison's clr transformation can help with chroma.
+
+```{r}
+indie <- 
+    pop %>% mutate(playlist = "Indie Pop") %>% 
+    bind_rows(
+        party %>% mutate(playlist = "Indie Party"),
+        workout %>% mutate(playlist = "Indie Workout")) %>% 
+    mutate(playlist = factor(playlist)) %>% 
+    mutate(
+        segments = 
+            map2(segments, key, compmus_c_transpose)) %>% 
+    mutate(
+        pitches = 
+            map(segments, 
+                compmus_summarise, pitches, 
+                method = 'mean', norm = 'manhattan'),
+        timbre =
+            map(
+                segments,
+                compmus_summarise, timbre,
+                method = 'mean')) %>% 
+    mutate(pitches = map(pitches, compmus_normalise, 'clr')) %>% 
+    mutate_at(vars(pitches, timbre), map, bind_rows) %>% 
+    unnest(cols = c(pitches, timbre))
+```
+
+### Pre-processing
+
+In the `tidyverse` approach, we can preprocess data with a `recipe` specifying what we are predicting and what variables we think might be useful for that prediction. Then we use `step` functions to do any data cleaning (usually centering and scaling, but `step_range` is a viable alternative that squeezes everything to be between 0 and 1). Finally we `prep` and `juice` the data. 
+
+```{r}
+indie_class <- 
+    recipe(playlist ~
+               danceability +
+               energy +
+               loudness +
+               speechiness +
+               acousticness +
+               instrumentalness +
+               liveness +
+               valence +
+               tempo +
+               duration +
+               C + `C#|Db` + D + `D#|Eb` +
+               E + `F` + `F#|Gb` + G +
+               `G#|Ab` + A + `A#|Bb` + B +
+               c01 + c02 + c03 + c04 + c05 + c06 +
+               c07 + c08 + c09 + c10 + c11 + c12,
+           data = indie) %>% 
+    step_center(all_predictors()) %>%
+    step_scale(all_predictors()) %>%
+    # step_range(all_predictors()) %>% 
+    prep(indie) %>% 
+    juice
+```
+
+### Cross-Validation
+
+The `vfold_cv` function sets up cross-validation. We will use 5-fold cross-validation here in the interest of speed, but 10-fold cross-validation is more typical. 
+
+```{r}
+indie_cv <- indie_class %>% vfold_cv(5)
+```
+
+### Classification Algorithms
+
+Your DataCamp tutorials this week introduced four classical algorithms for classification: $k$-nearest neighbour, naive Bayes, logistic regression, and decision trees. Other than naive Bayes, all of them can be implemented more simply in `tidymodels`. In order to use cross-validation, however, we need to write some local helper functions to `fit` the classifier on the training sets, `predict` the labels for the test/validation sets, and `bind` the results to the original data.
+
+#### $k$-Nearest Neighbour
+
+A $k$-nearest neighbour classifier often works just fine with only one neighbour. It is very sensitive to the choice of features, however. Let's check the performance as a baseline and come back to it later.
+
+```{r}
+indie_knn <- 
+    nearest_neighbor(mode = 'classification', neighbors = 1) %>% 
+    set_engine('kknn')
+predict_knn <- function(split)
+    fit(indie_knn, playlist ~ ., data = analysis(split)) %>% 
+    predict(assessment(split), type = 'class') %>%
+    bind_cols(assessment(split))
+```
+
+After a little awkwardness with cross-validation, we can use `conf_mat` to get a confusion matrix.
+
+```{r}
+indie_cv %>% 
+    mutate(pred = map(splits, predict_knn)) %>% unnest(pred) %>% 
+    conf_mat(truth = playlist, estimate = .pred_class)
+```
+
+These matrices `autoplot` in two forms.
+
+```{r}
+indie_cv %>% 
+    mutate(pred = map(splits, predict_knn)) %>% unnest(pred) %>% 
+    conf_mat(truth = playlist, estimate = .pred_class) %>% 
+    autoplot(type = 'mosaic')
+```
+
+```{r}
+indie_cv %>% 
+    mutate(pred = map(splits, predict_knn)) %>% unnest(pred) %>% 
+    conf_mat(truth = playlist, estimate = .pred_class) %>% 
+    autoplot(type = 'heatmap')
+```
+
+We can also compute statistics like accuracy, Cohen's kappa, or the J-measure. (Cohen's kappa and the J-measure are two popular methods to account for how well a classifier would do just by random chance; they also range from 0 to 1.)
+
+```{r}
+indie_cv %>% 
+    mutate(pred = map(splits, predict_knn)) %>% unnest(pred) %>% 
+    metric_set(accuracy, kap, j_index)(truth = playlist, estimate = .pred_class)
+```
+
+#### Logistic and Multinomial Regression
+
+In the two-class case, we use logistic regression, but beware if you have more than two classes! R will just build a classifier for the first two without warning.
+
+```{r}
+indie_logistic <- 
+    logistic_reg(mode = 'classification') %>% 
+    set_engine('glm')
+predict_logistic <- function(split)
+    fit(indie_logistic, playlist ~ ., data = analysis(split)) %>% 
+    predict(assessment(split), type = 'class') %>%
+    bind_cols(assessment(split))
+```
+
+With three or more classes, we need multinomial regression instead. You can adjust the penalty parameter if you are feeling adventurous.
+
+```{r}
+indie_multinom <- 
+    multinom_reg(mode = 'classification', penalty = 0.1) %>% 
+    set_engine('glmnet')
+predict_multinom <- function(split)
+    fit(indie_multinom, playlist ~ ., data = analysis(split)) %>% 
+    predict(assessment(split), type = 'class') %>%
+    bind_cols(assessment(split))
+```
+
+It is not a strong classifier for this problem.
+
+```{r}
+indie_cv %>% 
+    mutate(pred = map(splits, predict_multinom)) %>% unnest(pred) %>% 
+    metric_set(accuracy, kap, j_index)(truth = playlist, estimate = .pred_class)
+```
+
+We can look at the most important features in the model by using the `coef` method.
+
+```{r}
+indie_class %>%
+    fit(indie_multinom, playlist ~ ., data = .) %>%
+    pluck('fit') %>%
+    coef(s = 0)
+```
+
+#### Decision Trees
+
+Decision trees are nicely intuitive, and perform somewhat better here.
+
+```{r}
+indie_tree <- 
+    decision_tree(mode = 'classification') %>%
+    set_engine('C5.0')
+predict_tree <- function(split)
+    fit(indie_tree, playlist ~ ., data = analysis(split)) %>% 
+    predict(assessment(split), type = 'class') %>%
+    bind_cols(assessment(split))
+```
+
+```{r}
+indie_cv %>% 
+    mutate(pred = map(splits, predict_tree)) %>% unnest(pred) %>% 
+    metric_set(accuracy, kap, j_index)(truth = playlist, estimate = .pred_class)
+```
+
+We can look at the whole tree with the `summary` command. Be careful not to read too much into the actual numerical values, however: remember that the features were standardised before we started classification. Without cross-validation, the algorithm looks much better from the summary than it actually was in practice, but we can still see that timbre features are important and chroma features probably aren't. 
+
+```{r}
+indie_class %>% 
+    fit(indie_tree, playlist ~ ., data = .) %>% 
+    pluck('fit') %>%
+    summary
+```
+
+#### Random Forests
+
+```{r}
+indie_forest <- 
+    rand_forest(mode = 'classification') %>% 
+    set_engine('randomForest')
+predict_forest <- function(split)
+    fit(indie_forest, playlist ~ ., data = analysis(split)) %>% 
+    predict(assessment(split), type = 'class') %>%
+    bind_cols(assessment(split))
+```
+
+```{r}
+indie_cv %>% 
+    mutate(pred = map(splits, predict_forest)) %>% 
+    unnest(pred) %>% 
+    metric_set(accuracy, kap, j_index)(truth = playlist, estimate = .pred_class)
+```
+
+Random forests give us the best-quality ranking of feature importance, and we can plot it with `randomForest::varImpPlot`. Again, it is clear that timbre, specifically Component 1 (power) and Component 11, is important. Note that because random forests are indeed random, the accuracy and feature rankings will vary (slightly) every time you re-run the code.
+
+```{r}
+indie_class %>% 
+    fit(indie_forest, playlist ~ ., data = .) %>% 
+    pluck('fit') %>% 
+    randomForest::varImpPlot()
+```
+
+#### Feature Selection
+
+Let's try $k$-NN again with just the top features. We see much better results.
+
+```{r}
+predict_knn_reduced <- function(split)
+    fit(
+        indie_knn, 
+        playlist ~ c01 + liveness + acousticness + c02 + energy, 
+        data = analysis(split)) %>% 
+    predict(assessment(split), type = 'class') %>%
+    bind_cols(assessment(split))
+indie_cv %>% 
+    mutate(pred = map(splits, predict_knn_reduced)) %>% unnest(pred) %>% 
+    metric_set(accuracy, kap, j_index)(truth = playlist, estimate = .pred_class)
+```
+
+```{r}
+indie_cv %>% 
+    mutate(pred = map(splits, predict_knn_reduced)) %>% unnest(pred) %>% 
+    conf_mat(truth = playlist, estimate = .pred_class) %>% 
+    autoplot(type = 'mosaic')
+```
+
+Armed with this feature set, perhaps we can make a better plot. It's clear that the workout list has fewer live tracks, and that the party playlist is somewhat louder and higher on Components 1 and 2 than the pop list.
+
+```{r}
+indie %>%
+    ggplot(aes(x = c01, y = c02, colour = playlist, size = liveness)) +
+    geom_point(alpha = 0.8) +
+    scale_color_brewer(type = 'qual', palette = 'Accent') +
+    labs(
+        x = 'Timbre Component 1', 
+        y = 'Timbre Component 2', 
+        size = 'Liveness', 
+        colour = 'Playlist'
+    )
+```
+
+**Can you get better performance by using more or fewer of the top features from the random forest?**
+
+## Clustering (Optional)
+
+The Bibliothèque nationale de France (BnF) makes a large portion of its [music collection](https://gallica.bnf.fr/html/und/bnf-collection-sonore) available on Spotify, including an eclectic collection of curated playlists. The defining musical characteristics of these playlists are sometimes unclear: for example, they have a Halloween playlist. Perhaps clustering can help us organise and describe what kinds of musical selections make it into the BnF's playlist.
+
+We begin by loading the playlist and summarising the pitch and timbre features, just like last week. Note that, also like last week, we use `compmus_c_transpose` to transpose the chroma features so that -- depending on the accuracy of Spotify's key estimation -- we can interpret them as if every piece were in C major or C minor. Although this example includes no delta features, try adding them yourself if you are feeling comfortable with R!
+
+```{r}
+halloween <- 
+    get_playlist_audio_features('bnfcollection', '1vsoLSK3ArkpaIHmUaF02C') %>% 
+    add_audio_analysis %>% 
+    mutate(
+        segments = 
+            map2(segments, key, compmus_c_transpose)) %>% 
+    mutate(
+        pitches = 
+            map(segments, 
+                compmus_summarise, pitches, 
+                method = 'mean', norm = 'manhattan'),
+        timbre =
+            map(
+                segments,
+                compmus_summarise, timbre,
+                method = 'mean')) %>% 
+    mutate(pitches = map(pitches, compmus_normalise, 'clr')) %>% 
+    mutate_at(vars(pitches, timbre), map, bind_rows) %>% 
+    unnest(cols = c(pitches, timbre))
+```
+
+### Pre-processing
+
+Remember that in the `tidyverse` approach, we can preprocess data with a `recipe`. In this case, instead of a label that we want to predict, we start with a label that will make the cluster plots readable. For most projects, the track name will be the best choice (although feel free to experiment with others). The code below uses `str_trunc` to clip the track name to a maximum of 20 characters, again in order to improve readability. The other change from last week is `column_to_rownames`, which is necessary for the plot labels to appear correctly.
+
+Last week we also discussed that although standardising variables with `step_center` to make the mean 0 and `step_scale` to make the standard deviation 1 is the most common approach, sometimes `step_range` is a better alternative, which squashes or stretches every features so that it ranges from 0 to 1. For most classification algorithms, the difference is small; for clustering, the differences can be more noticable. It's wise to try both.
+
+```{r}
+halloween_juice <- 
+    recipe(track.name ~
+               danceability +
+               energy +
+               loudness +
+               speechiness +
+               acousticness +
+               instrumentalness +
+               liveness +
+               valence +
+               tempo +
+               duration +
+               C + `C#|Db` + D + `D#|Eb` +
+               E + `F` + `F#|Gb` + G +
+               `G#|Ab` + A + `A#|Bb` + B +
+               c01 + c02 + c03 + c04 + c05 + c06 +
+               c07 + c08 + c09 + c10 + c11 + c12,
+           data = halloween) %>% 
+    step_center(all_predictors()) %>%
+    step_scale(all_predictors()) %>%
+    # step_range(all_predictors()) %>% 
+    prep(halloween %>% mutate(track.name = str_trunc(track.name, 20))) %>% 
+    juice %>% 
+    column_to_rownames('track.name')
+```
+
+### Computing distances
+
+When using `step_center` and `step_scale`, then the Euclidean distance is usual. When using `step_range`, then the Manhattan distance is also a good choice: this combination is known as *Gower's distance* and has a long history in clustering.
+
+**After you have this section of the notebook working with Euclidean distance, try modifying it to use Gower's distance.**
+
+```{r}
+halloween_dist <- dist(halloween_juice, method = 'euclidean')
+```
+
+### Hierarchical clustering
+
+As you learned in your DataCamp exercises this week, there are three primary types of *linkage*: single, average, and complete. Usually average or complete give the best results. We can use the `ggendrogram` function to make a more standardised plot of the results.
+
+```{r}
+hclust(halloween_dist, method = 'single') %>% dendro_data %>% ggdendrogram
+```
+
+A more recent -- and often superior -- linkage function is *minimax linkage*, available in the `protoclust` package. It is more akin to $k$-means: at each step, it chooses an ideal centroid for every cluster such that the maximum distance between centroids and all members of their respective clusters is as small as possible.
+
+```{r}
+protoclust(halloween_dist) %>% dendro_data %>% ggdendrogram
+```
+
+**Try all four of these linkages. Which one looks the best? Which one *sounds* the best (when you listen to the tracks on Spotify)? Can you guess which features are separating the clusters?** 
+
+### *k*-Means
+
+Unlike hierarchical clustering, *k*-means clustering returns a different results every time. Nonetheless, it can be a useful reality check on the stability of the clusters from hierarchical clustering.
+
+**Try different numbers of clusters and see which results are the most stable.**
+
+```{r}
+kmeans(halloween_juice, 4)
+```
+
+### Heatmaps
+
+Especially for storyboards, it can be helpful to visualise hierarchical clusterings along with heatmaps of feature values. We can do that with `heatmaply`. Although the interactive heatmaps are flashly, think carefully when deciding whether this representation is more helpful for your storyboard than the simpler dendrograms above. 
+
+```{r}
+grDevices::dev.size("px")
+heatmaply(
+    halloween_juice,
+    hclustfun = hclust,
+    # hclustfun = protoclust,
+    # Comment out the hclust_method line when using protoclust.
+    hclust_method = 'average',
+    dist_method = 'euclidean')
+```
+
+**Which features seem to be the most and least useful for the clustering? What happens if you re-run this section of the notebook using only the best features?**

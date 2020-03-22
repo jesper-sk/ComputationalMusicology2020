@@ -22,6 +22,10 @@ library(dbscan)
 library(factoextra)
 library(plotly)
 library(compmus)
+library(tidymodels)
+library(ggdendro)
+library(heatmaply)
+library(protoclust)
 
 # Set Spotify access variables (every time)
 rm(list = ls())
@@ -235,7 +239,7 @@ These are the clusters produced with the k-means clustering algorithm. Regarding
 At first hand, the clusters seem surprising. For instance, it looks like Power Windows is way closer to Moving Pictures from another cluster that it is to Hold Your Fire or Clockwork Angels, the albums it shares a cluster with. However this is not neccesarily the case as the two dimiensions that are plotted here are only able to reflect 22% and 12% of the information. The cluster algorithm however, uses 100% of the information. Imagine the z-axis pointing upwards from the screen. These clusters could then be explained by the fact that the points from cluster 4 lay way higher on the z-axis than the points in cluster 3. 
 
 ### Album clustering: Conclusion
-```{r clusters}
+```{r clusters, eval=FALSE}
 rush_albums_clustered <- rush_stalbums_pc %>% 
   select(album_name, album_idx) %>% 
   mutate(cluster = rush_stalbums_pc.cluster$cluster)
@@ -265,6 +269,14 @@ rush.ca <- rush_clustered %>%
   add_audio_analysis() %>% 
   arrange(cluster)
 
+save(rush_albums_clustered, file="data/rush_albums_clustered.RData")
+save(rush.ca, file="data/rush_clusteranalysis.RData")
+```
+
+```{r}
+load("data/rush_albums_clustered.RData")
+load("data/rush_clusteranalysis.RData")
+
 knitr::kable(
   rush_albums_clustered %>% 
     group_by(album_name) %>% 
@@ -279,7 +291,7 @@ Here, we can see the cluster sets that came from my clustering. As the cluster v
 
 ### (SUBJECT TO CHANGE) Comparing typical songs from all clusters to each other
 
-```{r timbreetc, echo=FALSE, eval=TRUE}
+```{r getTimbreSSM, echo=FALSE, eval=FALSE}
 songs <- c(
   '4Ilt9N2XASXY60DSEitW5K', #AFTK
   '2P0x26YpGzXDddtQEc171e', #Marathon
@@ -334,7 +346,7 @@ get_ssm <- function(data){
 matrices <- c()
 
 data <- get(songs[1])
-  data %>% 
+rush.timbre.ssm.1 <- data %>% 
   compmus_self_similarity(timbre, 'cosine') %>% 
   ggplot(
       aes(
@@ -351,7 +363,7 @@ data <- get(songs[1])
   ggtitle(names[1])
   
 data <- get(songs[2])
-  data %>% 
+rush.timbre.ssm.2 <- data %>%
   compmus_self_similarity(timbre, 'cosine') %>% 
   ggplot(
       aes(
@@ -368,7 +380,7 @@ data <- get(songs[2])
   ggtitle(names[2])
   
 data <- get(songs[3])
-  data %>% 
+rush.timbre.ssm.3 <- data %>%
   compmus_self_similarity(timbre, 'cosine') %>% 
   ggplot(
       aes(
@@ -385,7 +397,7 @@ data <- get(songs[3])
   ggtitle(names[3])
   
 data <- get(songs[4])
-  data %>% 
+rush.timbre.ssm.4 <- data %>%
   compmus_self_similarity(timbre, 'cosine') %>% 
   ggplot(
       aes(
@@ -402,7 +414,7 @@ data <- get(songs[4])
   ggtitle(names[4])
   
 data <- get(songs[5])
-  data %>% 
+rush.timbre.ssm.5 <- data %>%
   compmus_self_similarity(timbre, 'cosine') %>% 
   ggplot(
       aes(
@@ -418,7 +430,27 @@ data <- get(songs[5])
   labs(x = '', y = '') + 
   ggtitle(names[5])
 
+save(rush.timbre.ssm.1, file="data\\rush_timbre_ssm_1.RData")
+save(rush.timbre.ssm.2, file="data\\rush_timbre_ssm_2.RData")
+save(rush.timbre.ssm.3, file="data\\rush_timbre_ssm_3.RData")
+save(rush.timbre.ssm.4, file="data\\rush_timbre_ssm_4.RData")
+save(rush.timbre.ssm.5, file="data\\rush_timbre_ssm_5.RData")
+
 ``` 
+
+```{r}
+load("data/rush_timbre_ssm_1.RData")
+load("data/rush_timbre_ssm_2.RData")
+load("data/rush_timbre_ssm_3.RData")
+load("data/rush_timbre_ssm_4.RData")
+load("data/rush_timbre_ssm_5.RData")
+
+rush.timbre.ssm.1
+rush.timbre.ssm.2
+rush.timbre.ssm.3
+rush.timbre.ssm.4
+rush.timbre.ssm.5
+```
 
 ***
 
@@ -455,9 +487,6 @@ I've plotted the three timbre features that varied the most across the different
 According to the spotify timbre documentation, c02 roughly correlates with the brightness. I'm inclined to believe that this correlation is inversed, i.e. higher c02 values implies a lower brightness. This is because the cluster with the lowest average brightness, cluster two, consists of two albums in which Rush uses a lot of brighter instruments (for instance, [these](https://open.spotify.com/playlist/35ps4GpYuPuAoiIG6kebAZ?si=dK4GyFCFT4GMZLmnJg7sZg) songs). This is in stark contrast to for instance cluster 4, that have an overall (though subjectively) darker tone (like [these](https://open.spotify.com/playlist/2btSbSR7hE9iHozoK4fG8V?si=2C2pIskmQh-WjFOP1QwiwQ)) 
 
 This inverse correlation would also explain the fact that cluster 1 also have a lower c02 value on average. This cluster contains most of the early work of Rush (followed by cluster 2). The singer of Rush is known for a very high pitched voice, however his pitch has lowered through the years quite steeply.
-
-New {.storyboard}
-===
 
 ### Tempo analysis across clusters
 ```{r}
@@ -541,7 +570,143 @@ rush.ca.timbredeltas %>%
 
 ***
 
-We can see that, even though there is some variance in a couple of timbre features, none of these seem significant. Cluster one seems to have a little higher peaks across timbre in general, but that is not very significant as well. This leads me to believe that this clustering might not be the best. Therefore next week, I will perform a new clustering using deltas and deltadeltas of chroma and timbre and see whether this results in a very differnt clustering. 
+We can see that, even though there is some variance in a couple of timbre features, none of these seem significant. Cluster one seems to have a little higher peaks across timbre in general, but that is not very significant as well. This leads me to believe that this clustering might not be the best. 
+
+New {.storyboard}
+===
+
+### Adding features to clustering
+
+So far, I have made a clustering of the studio albums only by spotify features (Instrumentalness, acousticness, etc). I will now perform a new clustering using all the nifty techniques I've learned in this course. I Will calculate a variety of features, and see which of these will contribute to a more accurate clustering of studio albums. I will calculalte the chromal and timbral deltas and deltadeltas, and the mean interonset intervals for each track. 
+
+```{r get IOI, eval=TRUE}
+rush.ca <- rush.ca %>% 
+  mutate(
+    segments =
+      modify(
+        segments,
+        mutate,
+        onset = modify2(start, loudness_max_time, `+`))) %>% 
+  mutate(
+    segments = 
+      modify(
+        segments,
+        mutate,
+        IOI = modify2(onset, lag(onset), `-`))) %>% 
+  mutate(
+    IOI =
+      modify(
+        segments,
+        function(s){mean(s$IOI, na.rm=TRUE)})) %>% 
+  unnest(cols=c(IOI))
+```
+
+### Discussion of the use of __Interonset Interval__ as cluster feature
+
+```{r, fig.width=10}
+rects <- rush.ca %>% 
+  arrange(album_release_date) %>% 
+  select(album_name, track_number, album_release_date) %>% 
+  group_by(album_name) %>% 
+  mutate(n_tracks = max(track_number)) %>% 
+  subset(n_tracks == track_number) %>% 
+  ungroup() %>% 
+  mutate(
+    end = cumsum(n_tracks),
+    start = end - n_tracks
+    ) %>% 
+  select(album_name, album_release_date, start, end)
+
+data <- rush.ca %>% 
+  arrange(track_number) %>% 
+  arrange(album_release_date)
+
+ggplot() +
+  geom_rect(data=rects, aes(xmin=start, xmax=end, ymin=-Inf, ymax=Inf, fill=album_release_date)) +
+  scale_fill_viridis_d(guide="none", alpha=0.9) +
+  geom_smooth(method = "loess", data=data, aes(x=c(1:nrow(rush.ca)), y=IOI), se = TRUE, color="white") +
+  geom_point(data=data, aes(x=c(1:nrow(rush.ca)), y=IOI), size=1) +
+  theme_minimal() +
+  scale_x_continuous(name="", breaks=rects$start+1, labels=rects$album_name) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("Interonset Interval") +
+  ggtitle("Mean interonset interval for each track per album")
+```
+
+***
+
+One of the features I will use in the new clustering is the mean interonset interval of the tracks. The interonset interval is the time between two consecutive attack points within a track. Taking the mean of all these values gives me an indication of how quick attack points follow one another. The mean interonset interval of all tracks per studio album is plotted on the right (points within one colored rectangle are all from the same album). The intervals follow a nice curvy trend, which is promising for use as a clustering feature. 
+
+```{r getdeltas}
+rush.ca <- rush.ca %>% 
+    mutate(
+        segments = 
+            map2(segments, key, compmus_c_transpose)) %>% 
+    mutate(
+        segments = 
+            map(segments, 
+                mutate, 
+                pitches = map(pitches, compmus_normalise, 'manhattan'))) %>% 
+    mutate(
+        segments =
+            map(segments,
+                mutate,
+                d_pitches = map2(pitches, lag(pitches), `-`))) %>% 
+    mutate(
+        segments =
+            map(segments,
+                mutate,
+                d_timbre = map2(timbre, lag(timbre), `-`))) %>% 
+    mutate(
+        segments =
+            map(segments,
+                mutate,
+                dd_pitches = map2(d_pitches, lag(d_pitches), `-`))) %>% 
+    mutate(
+        segments =
+            map(segments,
+                mutate,
+                dd_timbre = map2(d_timbre, lag(d_timbre), `-`))) 
+
+rush.ca <- rush.ca %>% 
+   mutate(
+        pitches =
+            map(segments,
+                compmus_summarise, pitches,
+                method = 'mean', na.rm = TRUE),
+        timbre =
+            map(segments,
+                compmus_summarise, timbre,
+                method = 'mean', na.rm = TRUE),
+        d_pitches =
+            map(segments,
+                compmus_summarise, d_pitches,
+                method = 'mean', na.rm = TRUE),
+        d_timbre =
+            map(segments,
+                compmus_summarise, d_timbre,
+                method = 'mean', na.rm = TRUE),
+        dd_pitches =
+            map(segments,
+                compmus_summarise, dd_pitches,
+                method = 'mean', na.rm = TRUE),
+        dd_timbre =
+            map(segments,
+                compmus_summarise, dd_timbre,
+                method = 'mean', na.rm = TRUE)
+        )
+
+rush.ca <- rush.ca %>% 
+    mutate_at(vars(pitches, timbre, d_pitches, d_timbre, dd_pitches, dd_timbre), map, bind_rows) %>% 
+    unnest(cols = c(pitches), names.sep="_") %>% 
+    unnest(cols = c(d_pitches), names.sep="_") %>% 
+    unnest(cols = c(dd_pitches), names.sep="_") %>% 
+    unnest(cols = c(timbre), names.sep="_") %>% 
+    unnest(cols = c(d_timbre), names.sep="_") %>%
+    unnest(cols = c(dd_timbre), names.sep="_")
+
+save(rush.ca, file="data/rush_ca_clustering_finished.RData")
+```
 
 ```{r chromadeltas, fig.height=15, fig.width=10, eval=FALSE}
 rush.ca.chromadeltas <- rush.ca %>% 
@@ -622,6 +787,108 @@ rush.ca.timbredeltadeltas %>%
   theme(axis.text.x=element_blank(), axis.ticks.x = element_blank()) 
 ```
 
+```{r toalbum}
+load("data/rush_ca_clustering_finished.RData")
+rush.ca.album <- rush.ca %>% 
+  select(album_name, album_release_date,
+          danceability,
+          energy,
+          loudness,
+          speechiness,
+          acousticness,
+          instrumentalness,
+          liveness,
+          valence,
+          tempo,
+          duration,
+          IOI,
+          C, `C#|Db`, D, `D#|Eb`,
+          E, `F`, `F#|Gb`, G,
+          `G#|Ab`, A, `A#|Bb`, B,
+          c01, c02, c03, c04, c05, c06,
+          c07, c08, c09, c10, c11, c12,
+          C1, `C#|Db1`, D1, `D#|Eb1`,
+          E1, `F1`, `F#|Gb1`, G1,
+          `G#|Ab1`, A1, `A#|Bb1`, B1,
+          c011, c021, c031, c041, c051, c061,
+          c071, c081, c091, c101, c111, c121,
+          C2, `C#|Db2`, D2, `D#|Eb2`,
+          E2, `F2`, `F#|Gb2`, G2,
+          `G#|Ab2`, A2, `A#|Bb2`, B2,
+          c012, c022, c032, c042, c052, c062,
+          c072, c082, c092, c102, c112, c122) %>% 
+  mutate(album_relase_date = as.Date(album_release_date)) %>% 
+  group_by(album_name, album_release_date) %>% 
+  summarize_at(.vars=vars(danceability:c122), .funs=list(~mean(.), ~sd(.))) %>% 
+  arrange(album_release_date)
+```
+
+### The __final clustering__ using all available features, and __discussion__ thereof
+
+```{r newcluster_prep, figure.height=10, eval=FALSE}
+rush.ca.juice <- 
+  recipe(album_name ~
+           danceability_mean +
+           energy_mean +
+           valence_mean +
+           IOI_mean +
+           C_mean + `C#|Db_mean` + D_mean + `D#|Eb_mean` +
+           E_mean + `F_mean` + `F#|Gb_mean` + G_mean +
+           `G#|Ab_mean` + A_mean + `A#|Bb_mean` + B_mean +
+           c01_mean + c02_mean + c03_mean + c04_mean + c05_mean + c06_mean +
+           c07_mean + c08_mean + c09_mean + c10_mean + c11_mean + c12_mean +
+            C1_mean + `C#|Db1_mean` + D1_mean + `D#|Eb1_mean` +
+           E1_mean + `F1_mean` + `F#|Gb1_mean` + G1_mean +
+           `G#|Ab1_mean` + A1_mean + `A#|Bb1_mean` + B1_mean +
+           c011_mean + c021_mean + c031_mean + c041_mean + c051_mean + c061_mean +
+           c071_mean + c081_mean + c091_mean + c101_mean + c111_mean + c121_mean +
+           C2_mean + `C#|Db2_mean` + D2_mean + `D#|Eb2_mean` +
+           E2_mean + `F2_mean` + `F#|Gb2_mean` + G2_mean +
+           `G#|Ab2_mean` + A2_mean + `A#|Bb2_mean` + B2_mean +
+           c012_mean + c022_mean + c032_mean + c042_mean + c052_mean + c062_mean +
+           c072_mean + c082_mean + c092_mean + c102_mean + c112_mean + c122_mean,           
+       data = rush.ca.album) %>%
+  #step_center(all_predictors()) %>% 
+  #step_scale(all_predictors()) %>% 
+  step_range(all_predictors()) %>% 
+  prep(rush.ca.album %>% mutate(track_name=str_trunc(album_name, 20, side="center"))) %>% 
+  juice %>% 
+  column_to_rownames('album_name')
+
+#rush.ca.dist <- dist(rush.ca.juice, method='euclidean')
+rush.ca.dist <- dist(rush.ca.juice, method='manhattan')
+
+protoclust(rush.ca.dist) %>% dendro_data %>% ggdendrogram
+```
+![Dendrogram](./data/clusterdedndrogram.png)
+
+***
+
+After a bit of experimenting, using *minimax linkage* with *Gower's distance* gave the best results. As features, I used the most varying music features danceability, energy and valence (as can be seen in the very first storyboard of Album Classification), the mean interonset intervals and chroma/timbre features, deltas and deltadeltas. The resulting dendrogram can be seen on the right. 
+
+Let's go over the different clusters we can extract from this dendrogram.
+
+__The far right__ group consists of Fly By Night, Hemispheres, Caress Of Steel, and A Farewell To Kings. These are all albums from the early days of Rush, and this time can be seen as their most progressive era. All fo these albums contain at least one long "epic", a complex song of over 10 minutes of length with a lot of changes in tempo and complex time signatures. These epics go through a single story, including different chapters with different musical properties each. We can see at the top that Fly By Night is the first album to branch off, meaning that this album is the most distinct with relation to the rest of this cluster. Fly By Night is the second album of Rush's discography and the first album featuring Neil Peart as lead drummer and lyricist. (...)
+
+__The group to the right from the center__, going from Permanent Waves to Counterparts, seems like the largest cluster with the higherst similarity relative to one another. Even though they are very similar according to this dendrogram, a division can be made between Permanent Waves to Moving Pictures and Roll The Bones to Counterparts. Permanent Waves and Moving Pictures were two consecutive albums release right after the progressive "epic" cluster discussed above. These albums depict a transition from these longer songs to more compact ones. Seeing them together is therefore not surprising, however seeing Clockwork Angels standing in between is. Clockwork Angels is Rush's last album, released in 2011. (...)
+Roll The Bones and Counterparts are again two consecutive albums, this time released in the second half of Rush's life. These albums feature Rush coming back to more 'traditional' instrumentation  and time signatures. However, this is not really the case for the other album in this group: Grace Under Pressure. This album was released earlier on, and features a lot of synth use. (...)
+
+__The group in the center__, Signals, Power Windows and Hold Your Fire. These albums were realed in the same period and represent a time where synthesizers played a bigger and bigger role in their music. This synth-use peaked at Hold Your Fire, explaining why that album branches off at a low point. 
+
+__The group on the left__. We can see a little stairway going from Snakes & Arrows at the top down to Vapor Trails and it's remixed brother. I'm pleased to see that those two end up in the same branch, as a remix should'nt have that much influence on their audio features. In my previous clustering, the original and the remixed variant were assigned different clusters. Vapor Trails and Test for Echo were released in line, featuring a very guitar-oriented instrumentation. This also the case for Rush, their very first album. I find these three very fitting in one cluster, however I was at first surprised to see Snakes & Arrows here. Snakes & Arrows was the second to last album released and it has a very distinctive atmosphere to it. Therefore, I didn't associate it with the other albums in this cluster. However, upon second listening I discovered that Snakes & Arrows indeed has a high focus on guitar as well, albeit with a different sound to it.
+
+__The two outliers__, 2112 and Presto. During my previous exploration I've already noticed Presto being an outlier, however I'm surprised to see 2112 at the root of the dendrogram. Released between Caress Of Steel and A Farewell To Kings would have expected to see it clustered with the first group I discussed, as 2112 starts with a twenty minute long epic. In fact, 2112 was that broke Rush through (2112 is being seen as one of Rush's all-time masterpieces), and was that they needed to be able to start on a project like A Farewell To Kings. Coincidentally (or is it), Presto is one of Rush lesser-received albums (...)
+
+```{r hclust, fig.width=16, eval=FALSE}
+grDevices::dev.size("px")
+heatmaply(
+    rush.ca.juice,
+    hclustfun = hclust,
+    # hclustfun = protoclust,
+    # Comment out the hclust_method line when using protoclust.
+    hclust_method = 'average',
+    dist_method = 'euclidean')
+```
 
 Live vs. Studio
 ===
@@ -631,7 +898,7 @@ Column
 
 ### Plot
 
-```{r livestudiochroma, echo=FALSE, eval=TRUE}
+```{r livestudiochroma, echo=FALSE, eval=FALSE}
 xanadu_st <- 
     get_tidy_audio_analysis('5q7KiSN7znIONR76LAqm7k') %>% 
     select(segments) %>% unnest(segments) %>% 
@@ -642,7 +909,7 @@ xanadu_live <-
     select(segments) %>% unnest(segments) %>% 
     select(start, duration, pitches)
 
-compmus_long_distance(
+xanadu_live_st_plot <- compmus_long_distance(
     xanadu_st %>% mutate(pitches = map(pitches, compmus_normalise, 'chebyshev')),
     xanadu_live %>% mutate(pitches = map(pitches, compmus_normalise, 'chebyshev')),
     feature = pitches,
@@ -658,6 +925,13 @@ compmus_long_distance(
     scale_fill_continuous(type = 'viridis', guide = 'none') +
     labs(x = 'Xanadu Live', y = 'Xanadu Studio') +
     theme_minimal()
+
+save(xanadu_live_st_plot, file="data/xanadu_live_studio_plot.RData")
+```
+
+```{r, eval=TRUE}
+load("data/xanadu_live_studio_plot.RData")
+xanadu_live_st_plot
 ```
 
 Column
