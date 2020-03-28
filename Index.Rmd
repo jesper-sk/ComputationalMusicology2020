@@ -76,10 +76,10 @@ Furthermore, I looked at different genres that are said to be part of at least s
  
 I chose a total of four playlists for the Rock genre, so that I can analyse whether Rush followed the general trend of rock music through the years. 
 
-Album Classification {.storyboard}
+Initial Data Exploration {.storyboard}
 ===
 
-### First, I performed an initial analysis of the basic features of the studio albums
+### First, I performed an __initial analysis__ of the __basic features__ of the studio albums
 ```{r plot, include=TRUE, fig.align="center"}
 plot <-
 rush_features_by_album %>% 
@@ -134,7 +134,7 @@ I analyzed the audio features of each studio album of Rush, to see whether there
 
 This initial plot looks promising; we can see at least the _energy_, _valence_ and _danceability_ following some kind of a pattern here. Interestingly, we can see a dip in _energy_ and a peak in both _danceability_ and _valence_ at the 13th studio album. It seems like Rush tried to do something different in that album. This could indeed be what happened, as this album - Presto - wasn't received very well by the general public. It seems Rush learned from this, as, according to my plot, they seem to return to their 'roots' in their later albums. 
 
-### These features proved promising; so I proceded to do a principal component analysis of all Rush' albums.
+### These features proved promising; so I proceded to do a __principal component analysis__ of all Rush' albums.
 
 ```{r liveclassification, fig.width = 9}
 rush_features_by_album$album_type <- "Live"
@@ -156,9 +156,9 @@ ggplot(mapping=aes(x=rush_album_names, y=rush_albums_pca$x[,1], fill=rush_featur
 The results as shown before implies that there is a good chance the these music features could be enough to give an initial classification between Rush albums. To be able to easily incoroporate all these features in my classification, I used a principal component analysis to further explore the data. A principal component analysis reduces the dimensionality of a dataset (my initial dataset is in this case 8-dimensional) by breaking it down into multiple principal components, where the first principal component captures most information (information from all dimensions of the initial set!). Each next principal component captures less and less information.
 Firstly, I analyzed all albums of Rush. This graph represents the values of the first (i.e. most informative) principal component plotted against album.
 
-We can see that this principal component classifies all live-albums of Rush perfectly. However, as the first principal compment captures the most information of the entire dataset, I will now perform another PCA on only the studio albums for more accurate comparison.
+We can see that this principal component classifies all live-albums of Rush perfectly. However, as the first principal compment captures the most information of the entire dataset, I will now perform another PCA on only the studio albums for more accurate comparison. Upon further inspection, this enormous difference can be fully accounted for by the liveness spotify feature. This is unsurprising as we're classifying exactly that, but it is a good reminder that a PCA can't be applied blindly to a dataset. 
 
-### This proved to be effective to classify studio albums vs. live albums, so I now did a PCA on only Rush' studio albums.
+### As the previous PCA converged to the liveness feature, I'll do another __PCA__ on only the __Studio Albums__.
 
 ```{r studio_pca, fig.width = 9}
 rush_features_by_stalbum <- rush_features_by_album %>% filter(is_studio)
@@ -190,9 +190,13 @@ ggplot(rush_stalbums_pc.m,
 
 ***
 
-Looking at the first four principal components we can see that indeed the first one captures the most radical changes across albums. Furthermore, it looks like these principal components divide Rush' discography up in about 5 different eras. The next step will be to perform an actual clustering of these data and evaluate whether we need any more data to cluster the studio albums
+Looking at the first four principal components we can see that indeed the first one captures the most radical changes across albums. Furthermore, it looks like these principal components divide Rush' discography up in about 5 different eras. It's importand to remember that each principal component doesn't resemble any feature per se, but that you can make an estimation of album similarity based on the _difference_ in principal component value between these two albums. 
+The next step will be to perform an actual clustering of these data and evaluate whether we need any more data to cluster the studio albums.
 
-### Distance matrix to find location of starting centroids for k-means
+K-means clustering {.storyboard}
+===
+
+### __Introduction__, determining __parameters__ for the clustering {data-commentary_width=450}
 
 ```{r matrix}
 row.names(rush_stalbums_pc) <- rush_stalbums_pc$album_name
@@ -208,14 +212,15 @@ ggtitle("Distance matrix of Rush albums (pearson distance metric)")
 ```
 
 ***
+I'll perform a k-means clustering on all Rush's studio albums, using Spotify's basic audio features.
 
-This beatiful QR-like visualizations shows the distance (or invertedly the similarity) between different albums, based on the principal components. For an X and Y-coordinate, the color of the square leading to them represents the distance between these albums. The greener the square is, the closer they are.
+This beatiful QR-like visualizations shows the distance (or invertedly the similarity) between different albums, based on the principal components. For an X and Y-coordinate, the color of the square leading to them represents the distance or similarity between these albums. The greener the square is, the closer (more similar) they are.
 
 It is intereseting to see that, according to this matrix, the albums Presto and Rush are outliers relative to the rest of Rush' discography. This is to be expected, as we saw earlier that Presto was different. Furthermore, the album Rush is Rush' first album, and at that time the band had another drummer. As the drummer that came after this album influenced the musical style of the albums to come, it is not surprising that the album Rush is different.
 
 To give the k-means clustering algorithm the best change of succeeding, I want to initiate the centroids (center of a cluster) somewhere close to the eventual clusters. I can use the distance matrix for this. It would be best to place the centroids somewhere in the middle of a green 'blob'. The bigger the blob, the higher is the chance a cluster will converge to it anyways. I therefore decided to locate my initial centroids at the albums "Signals", "Counterparts", "Power Windows", "Caress of Steel" and "A Farewell To kings".
 
-### Clustering the studio albums with k-means 
+### __Clustering__ the studio albums with k-means 
 
 ```{r cluster, echo=FALSE}
 row.names(rush_stalbums_pc) <- rush_stalbums_pc$album_name
@@ -238,7 +243,7 @@ These are the clusters produced with the k-means clustering algorithm. Regarding
 
 At first hand, the clusters seem surprising. For instance, it looks like Power Windows is way closer to Moving Pictures from another cluster that it is to Hold Your Fire or Clockwork Angels, the albums it shares a cluster with. However this is not neccesarily the case as the two dimiensions that are plotted here are only able to reflect 22% and 12% of the information. The cluster algorithm however, uses 100% of the information. Imagine the z-axis pointing upwards from the screen. These clusters could then be explained by the fact that the points from cluster 4 lay way higher on the z-axis than the points in cluster 3. 
 
-### Album clustering: Conclusion
+### __Results__ of the k-means clustering
 ```{r clusters, eval=FALSE}
 rush_albums_clustered <- rush_stalbums_pc %>% 
   select(album_name, album_idx) %>% 
@@ -456,7 +461,7 @@ rush.timbre.ssm.5
 
 I tried to look at what makes each cluster destinctive from the rest, by taking a specific song from all clusters and comparing the self-similarity matrices with each other. These are shown to the left. Unfortunately, even though the individual matrices are very pretty indeed, I couldn't find any distinctive differences between any of the matrices. 
 
-### Comparing timbre features across clusters
+### __Timbral properties__ of the clusters
 ```{r, echo=FALSE}
 rush.ca %>% 
     mutate(
@@ -488,7 +493,7 @@ According to the spotify timbre documentation, c02 roughly correlates with the b
 
 This inverse correlation would also explain the fact that cluster 1 also have a lower c02 value on average. This cluster contains most of the early work of Rush (followed by cluster 2). The singer of Rush is known for a very high pitched voice, however his pitch has lowered through the years quite steeply.
 
-### Tempo analysis across clusters
+### __Tempo analysis__ across clusters
 ```{r}
 rush.ca %>% 
   group_by(cluster) %>% 
@@ -513,9 +518,7 @@ rush.ca %>%
 
 Here we can see the distribution of different tempi of songs across the different clusters. We can see that the mean tempo lies in the same range for each cluster, namely around 125-135bpm. However, the mean tempo confidence that the spotify API gives for each cluster varies a lot. Spotify has a lot less confidence in its cluster classifications of the first and second cluster, relative to the third, fourth and fifth cluster. I think this is because the songs in the first, second and to a lesser extent the third cluster have a lot more changes in tempo. This is to be expected, as these clusters contain most of the albums that are commonly seen as the most progressive. 
 
-To validate this, I will now quickly look at the differences in (different types of) novelties for each cluster.
-
-### Timbre deltas analysis
+### Analyzing __timbre deltas__ differences between clusters
 ```{r}
 rush.ca.timbredeltas <- rush.ca %>% 
     mutate(
@@ -570,14 +573,16 @@ rush.ca.timbredeltas %>%
 
 ***
 
-We can see that, even though there is some variance in a couple of timbre features, none of these seem significant. Cluster one seems to have a little higher peaks across timbre in general, but that is not very significant as well. This leads me to believe that this clustering might not be the best. 
+We can see that, even though there is some variance in a couple of timbre features, none of these seem significant. Cluster one seems to have a little higher peaks across timbre in general, but that is not very significant as well. This leads me to believe that this clustering might not be the best. Let's incorporate Spotify's lower level audio-analyses in a new clustering.
 
-New {.storyboard}
+Hierarchical clustering {.storyboard}
 ===
 
-### Adding features to clustering
+### __Adding features__ to clustering
 
 So far, I have made a clustering of the studio albums only by spotify features (Instrumentalness, acousticness, etc). I will now perform a new clustering using all the nifty techniques I've learned in this course. I Will calculate a variety of features, and see which of these will contribute to a more accurate clustering of studio albums. I will calculalte the chromal and timbral deltas and deltadeltas, and the mean interonset intervals for each track. 
+
+Futhermore, I will also look at different types of hierearchial clustering algorithms, instead of using k-means. Using a hierarchical clustering methods will give us a more detailed view of how the studio albums correspond to each other. 
 
 ```{r get IOI, eval=TRUE}
 rush.ca <- rush.ca %>% 
@@ -603,7 +608,7 @@ rush.ca <- rush.ca %>%
 
 ### Discussion of the use of __Interonset Interval__ as cluster feature
 
-```{r, fig.width=10}
+```{r, fig.width=10, fig.height=8}
 rects <- rush.ca %>% 
   arrange(album_release_date) %>% 
   select(album_name, track_number, album_release_date) %>% 
@@ -613,8 +618,7 @@ rects <- rush.ca %>%
   ungroup() %>% 
   mutate(
     end = cumsum(n_tracks),
-    start = end - n_tracks
-    ) %>% 
+    start = end - n_tracks) %>% 
   select(album_name, album_release_date, start, end)
 
 data <- rush.ca %>% 
@@ -623,13 +627,14 @@ data <- rush.ca %>%
 
 ggplot() +
   geom_rect(data=rects, aes(xmin=start, xmax=end, ymin=-Inf, ymax=Inf, fill=album_release_date)) +
-  scale_fill_viridis_d(guide="none", alpha=0.9) +
+  scale_fill_viridis_d(option="inferno", guide="none") +
   geom_smooth(method = "loess", data=data, aes(x=c(1:nrow(rush.ca)), y=IOI), se = TRUE, color="white") +
-  geom_point(data=data, aes(x=c(1:nrow(rush.ca)), y=IOI), size=1) +
+  geom_point(data=data, aes(x=c(1:nrow(rush.ca)), y=IOI, color=c(1:nrow(rush.ca))), size=1) +
+  scale_color_gradient(low="white", high="black", guide="none") +
   theme_minimal() +
-  scale_x_continuous(name="", breaks=rects$start+1, labels=rects$album_name) + 
+  scale_x_continuous(name="", breaks=rects$start+1, labels=rects$album_name, minor_breaks=NULL) + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  ylab("Interonset Interval") +
+  scale_y_continuous(name="Interonset Interval (ms)", minor_breaks=NULL) +
   ggtitle("Mean interonset interval for each track per album")
 ```
 
@@ -823,7 +828,7 @@ rush.ca.album <- rush.ca %>%
   arrange(album_release_date)
 ```
 
-### The __final clustering__ using all available features, and __discussion__ thereof
+### The __final clustering__ using all available features, and __discussion__ thereof {data-commentary-width=550}
 
 ```{r newcluster_prep, figure.height=10, eval=FALSE}
 rush.ca.juice <- 
@@ -868,16 +873,17 @@ After a bit of experimenting, using *minimax linkage* with *Gower's distance* ga
 
 Let's go over the different clusters we can extract from this dendrogram.
 
-__The far right__ group consists of Fly By Night, Hemispheres, Caress Of Steel, and A Farewell To Kings. These are all albums from the early days of Rush, and this time can be seen as their most progressive era. All fo these albums contain at least one long "epic", a complex song of over 10 minutes of length with a lot of changes in tempo and complex time signatures. These epics go through a single story, including different chapters with different musical properties each. We can see at the top that Fly By Night is the first album to branch off, meaning that this album is the most distinct with relation to the rest of this cluster. Fly By Night is the second album of Rush's discography and the first album featuring Neil Peart as lead drummer and lyricist. (...)
+__The far right__ group consists of Fly By Night, Hemispheres, Caress Of Steel, and A Farewell To Kings. These are all albums from the early days of Rush, and this time can be seen as their most progressive era. All fo these albums contain at least one long "epic", a complex song of over 10 minutes of length with a lot of changes in tempo and complex time signatures. These epics go through a single story, including different chapters with different musical properties each. We can see at the top that Fly By Night is the first album to branch off, meaning that this album is the most distinct with relation to the rest of this cluster. Fly By Night is the second album of Rush's discography and the first album featuring Neil Peart as lead drummer and lyricist. This album can therefore be seen as the "starting point" of the style Rush with Neil Peart will develop. It is therefore explainable that this album lies at the top of this branch, and indeed branches off very high in the global dendrogram as well.
 
-__The group to the right from the center__, going from Permanent Waves to Counterparts, seems like the largest cluster with the higherst similarity relative to one another. Even though they are very similar according to this dendrogram, a division can be made between Permanent Waves to Moving Pictures and Roll The Bones to Counterparts. Permanent Waves and Moving Pictures were two consecutive albums release right after the progressive "epic" cluster discussed above. These albums depict a transition from these longer songs to more compact ones. Seeing them together is therefore not surprising, however seeing Clockwork Angels standing in between is. Clockwork Angels is Rush's last album, released in 2011. (...)
-Roll The Bones and Counterparts are again two consecutive albums, this time released in the second half of Rush's life. These albums feature Rush coming back to more 'traditional' instrumentation  and time signatures. However, this is not really the case for the other album in this group: Grace Under Pressure. This album was released earlier on, and features a lot of synth use. (...)
+__The group to the right from the center__, going from Permanent Waves to Counterparts, seems like the largest cluster with the higherst similarity relative to one another. Even though they are very similar according to this dendrogram, a division can be made between Permanent Waves to Moving Pictures and Roll The Bones to Counterparts. Permanent Waves and Moving Pictures were two consecutive albums release right after the progressive "epic" cluster discussed above. These albums depict a transition from these longer songs to more compact ones. Seeing them together is therefore not surprising, however seeing Clockwork Angels standing in between these albums, is. Clockwork Angels is Rush's last album, released in 2011. 
+Roll The Bones and Counterparts are again two consecutive albums, this time released in the second half of Rush's life. These albums feature Rush coming back to more 'traditional' instrumentation  and time signatures. However, this is not really the case for the other album in this group: Grace Under Pressure. This album was released earlier on, and features a lot of synth use.
 
-__The group in the center__, Signals, Power Windows and Hold Your Fire. These albums were realed in the same period and represent a time where synthesizers played a bigger and bigger role in their music. This synth-use peaked at Hold Your Fire, explaining why that album branches off at a low point. 
+__The group in the center__, Signals, Power Windows and Hold Your Fire. These albums were realeased in the same period and represent a time where their music became increasingly "poppy", and involved a lot of synths. This synthy poppiness peaked at Hold Your Fire, explaining why that album branches off at a low point together with Power Windows. 
 
-__The group on the left__. We can see a little stairway going from Snakes & Arrows at the top down to Vapor Trails and it's remixed brother. I'm pleased to see that those two end up in the same branch, as a remix should'nt have that much influence on their audio features. In my previous clustering, the original and the remixed variant were assigned different clusters. Vapor Trails and Test for Echo were released in line, featuring a very guitar-oriented instrumentation. This also the case for Rush, their very first album. I find these three very fitting in one cluster, however I was at first surprised to see Snakes & Arrows here. Snakes & Arrows was the second to last album released and it has a very distinctive atmosphere to it. Therefore, I didn't associate it with the other albums in this cluster. However, upon second listening I discovered that Snakes & Arrows indeed has a high focus on guitar as well, albeit with a different sound to it.
+__The group on the left__. We can see a little stairway going from Snakes & Arrows at the top down to Vapor Trails and it's remixed counterpart (pun not intended). I'm pleased to see that those two end up in the same branch, as a remix shouldn't have that much influence on their audio features. Contrastingly, in my previous k-means clustering the remixed version of Vapor Trails was assigned a different cluster.
+Vapor Trails and Test for Echo were released in line, featuring a very guitar-oriented instrumentation. This also the case for Rush's self-titled, their very first album. I find these three very fitting in one cluster, however I was at first surprised to see Snakes & Arrows here. Snakes & Arrows was the second to last album released and it has a very distinctive atmosphere to it. Therefore, I didn't associate it with the other albums in this cluster. However, upon second listening I discovered that Snakes & Arrows indeed has a high focus on guitar as well, albeit with a different sound to it.
 
-__The two outliers__, 2112 and Presto. During my previous exploration I've already noticed Presto being an outlier, however I'm surprised to see 2112 at the root of the dendrogram. Released between Caress Of Steel and A Farewell To Kings would have expected to see it clustered with the first group I discussed, as 2112 starts with a twenty minute long epic. In fact, 2112 was that broke Rush through (2112 is being seen as one of Rush's all-time masterpieces), and was that they needed to be able to start on a project like A Farewell To Kings. Coincidentally (or is it), Presto is one of Rush lesser-received albums (...)
+__The two outliers__, 2112 and Presto. During my previous exploration I've already noticed Presto being an outlier, however I'm surprised to see 2112 at the root of the dendrogram. Released between Caress Of Steel and A Farewell To Kings, I would have expected to see it clustered with the first group I discussed. 2112 starts with a twenty minute long epic, which is actually seen as one of Rush's all-time masterpieces. This sudden spike in popularity was that they needed to be able to start on a project like A Farewell To Kings. Coincidentally (or is it), Presto is one of Rush lesser-received albums. It is released between the synth/pop-cluster and the cluster consisting of Roll the Bones and Counterparts. I think it can be best described as somewhat of a transition between these clusters. This could explain the fact that the album forms its own cluster and the fact that it branches off lower than 2112, as it still is 'only' a transition from one era to the next instead of something different alltogether. 
 
 ```{r hclust, fig.width=16, eval=FALSE}
 grDevices::dev.size("px")
