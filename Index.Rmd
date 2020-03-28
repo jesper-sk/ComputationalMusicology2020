@@ -196,7 +196,7 @@ The next step will be to perform an actual clustering of these data and evaluate
 K-means clustering {.storyboard}
 ===
 
-### __Introduction__, determining __parameters__ for the clustering {data-commentary_width=450}
+### __Introduction__, determining __parameters__ for the clustering {data-commentary_width=600}
 
 ```{r matrix}
 row.names(rush_stalbums_pc) <- rush_stalbums_pc$album_name
@@ -278,7 +278,7 @@ save(rush_albums_clustered, file="data/rush_albums_clustered.RData")
 save(rush.ca, file="data/rush_clusteranalysis.RData")
 ```
 
-```{r}
+```{r, eval=FALSE}
 load("data/rush_albums_clustered.RData")
 load("data/rush_clusteranalysis.RData")
 
@@ -290,13 +290,36 @@ knitr::kable(
 )
 ```
 
+```{r load, eval=TRUE}
+load("data/rush_albums_clustered.RData")
+load("data/rush_clusteranalysis.RData")
+```
+```{r pie}
+rush_albums_clustered %>%
+  group_by(cluster) %>% 
+  mutate(name=paste(album_name, collapse='\n')) %>% 
+  mutate(count=nrow(album_name)) %>%  
+  plot_ly(labels=~paste("Cluster", as.character(cluster)), 
+          values=~nrow(.), 
+          type='pie',
+          textinfo='label+percent',
+          insidetextfont = list(color = '#FFFFFF'),
+          hoverinfo='text',
+          text=~name,
+          showlegend=FALSE) %>% 
+  layout(title = "Distribution of the album clusters",
+           xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+           yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+```
+
 ***
 
-Here, we can see the cluster sets that came from my clustering. As the cluster visualization from the previous page only offers a limited view of the performance of my clustering, I will now look at timbral and chordal analyses to see whether the clustering seems any good and, if so, whether I can spot distinctive properties of different clusters.
+This beautiful pie-chart shows the distribution of clusters across the studio albums (the album names within each cluster are shown on hover). Upon intital inspection I find some of the clusterings rather peculiar, based on the picture I get from purely listening to the albums. However, before we dive into what I subjectively think, I will first perform a timbral and chordal analysis to see whether my subjective antipathy to this clustering is purely subjective, or there truly is something wrong with it.
 
-### (SUBJECT TO CHANGE) Comparing typical songs from all clusters to each other
 
 ```{r getTimbreSSM, echo=FALSE, eval=FALSE}
+### (SUBJECT TO CHANGE) Comparing typical songs from all clusters to each other
+
 songs <- c(
   '4Ilt9N2XASXY60DSEitW5K', #AFTK
   '2P0x26YpGzXDddtQEc171e', #Marathon
@@ -443,7 +466,7 @@ save(rush.timbre.ssm.5, file="data\\rush_timbre_ssm_5.RData")
 
 ``` 
 
-```{r}
+```{r, eval=FALSE}
 load("data/rush_timbre_ssm_1.RData")
 load("data/rush_timbre_ssm_2.RData")
 load("data/rush_timbre_ssm_3.RData")
@@ -455,11 +478,13 @@ rush.timbre.ssm.2
 rush.timbre.ssm.3
 rush.timbre.ssm.4
 rush.timbre.ssm.5
+
+#***
+
+#I tried to look at what makes each cluster destinctive from the rest, by taking a specific song from all clusters and comparing the self-similarity matrices with each other. These are shown to the left. Unfortunately, even though the individual matrices are very pretty indeed, I couldn't find any distinctive differences between any of the matrices. 
+
 ```
 
-***
-
-I tried to look at what makes each cluster destinctive from the rest, by taking a specific song from all clusters and comparing the self-similarity matrices with each other. These are shown to the left. Unfortunately, even though the individual matrices are very pretty indeed, I couldn't find any distinctive differences between any of the matrices. 
 
 ### __Timbral properties__ of the clusters
 ```{r, echo=FALSE}
@@ -883,7 +908,7 @@ __The group in the center__, Signals, Power Windows and Hold Your Fire. These al
 __The group on the left__. We can see a little stairway going from Snakes & Arrows at the top down to Vapor Trails and it's remixed counterpart (pun not intended). I'm pleased to see that those two end up in the same branch, as a remix shouldn't have that much influence on their audio features. Contrastingly, in my previous k-means clustering the remixed version of Vapor Trails was assigned a different cluster.
 Vapor Trails and Test for Echo were released in line, featuring a very guitar-oriented instrumentation. This also the case for Rush's self-titled, their very first album. I find these three very fitting in one cluster, however I was at first surprised to see Snakes & Arrows here. Snakes & Arrows was the second to last album released and it has a very distinctive atmosphere to it. Therefore, I didn't associate it with the other albums in this cluster. However, upon second listening I discovered that Snakes & Arrows indeed has a high focus on guitar as well, albeit with a different sound to it.
 
-__The two outliers__, 2112 and Presto. During my previous exploration I've already noticed Presto being an outlier, however I'm surprised to see 2112 at the root of the dendrogram. Released between Caress Of Steel and A Farewell To Kings, I would have expected to see it clustered with the first group I discussed. 2112 starts with a twenty minute long epic, which is actually seen as one of Rush's all-time masterpieces. This sudden spike in popularity was that they needed to be able to start on a project like A Farewell To Kings. Coincidentally (or is it), Presto is one of Rush lesser-received albums. It is released between the synth/pop-cluster and the cluster consisting of Roll the Bones and Counterparts. I think it can be best described as somewhat of a transition between these clusters. This could explain the fact that the album forms its own cluster and the fact that it branches off lower than 2112, as it still is 'only' a transition from one era to the next instead of something different alltogether. 
+__The two outliers__, 2112 and Presto. During my previous exploration I've already noticed Presto being an outlier, however I'm surprised to see 2112 at the root of the dendrogram. Released between Caress Of Steel and A Farewell To Kings, I would have expected to see it clustered with the first group I discussed. 2112 starts with a twenty minute long epic, which is actually seen as one of Rush's all-time masterpieces. This sudden spike in popularity was that they needed to be able to start on a project like A Farewell To Kings. Coincidentally (or is it), Presto is one of Rush lesser-received albums. It is released between the synth/pop-cluster and the cluster consisting of Roll the Bones and Counterparts. I think it can be best described as somewhat of a transition between these clusters. This could explain the fact that the album forms its own cluster and the fact that it branches off lower than 2112, as it still is 'only' a transition from one era to the next instead of something different altogether. 
 
 ```{r hclust, fig.width=16, eval=FALSE}
 grDevices::dev.size("px")
@@ -935,7 +960,7 @@ xanadu_live_st_plot <- compmus_long_distance(
 save(xanadu_live_st_plot, file="data/xanadu_live_studio_plot.RData")
 ```
 
-```{r, eval=TRUE}
+```{r, eval=FALSE}
 load("data/xanadu_live_studio_plot.RData")
 xanadu_live_st_plot
 ```
