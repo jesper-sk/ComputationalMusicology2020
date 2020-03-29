@@ -1,0 +1,33 @@
+---
+title: "Untitled"
+author: "Ik"
+date: "3/29/2020"
+output: 
+  html_document:
+    logo: data/icon.png
+    favicon: data/icon.png
+---
+
+
+Live vs. Studio {.storyboard}
+===
+
+### Introduction
+
+Up to this point, I've worked with the corpus on album level. This has as imiplication that I didn't really have a fitting place to do some of the nice track-level visualizations and analyses I've learned during this course. However, Rush is also known for their very good live performances. So I decided to take one of the previously discussed epics, and see what makes these tracks so compelling live. 
+
+So far, I have made a clustering of the studio albums only by spotify features (Instrumentalness, acousticness, etc). I will now perform a new clustering using all the nifty techniques I've learned in this course. I will calculate a variety of features, and see which of these will contribute to a more accurate clustering of studio albums. I will look at the following features:
+
+* Timbre features, deltas and deltadeltas
+* Chroma features, deltas and deltadeltas
+* Mean Interonset interval
+
+Futhermore, I will also look at different types of hierearchial clustering algorithms, instead of using k-means. Using a hierarchical clustering methods will give us a more detailed view of how the studio albums correspond to each other. 
+
+```{r tempogram, fig.width=10, fig.height=4}
+load("data/xanadu_st_t.RData")
+load("data/xanadu_live_t.RData")
+
+xanadu_st_t 
+xanadu_live_t 
+```
