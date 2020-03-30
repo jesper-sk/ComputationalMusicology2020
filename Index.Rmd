@@ -58,7 +58,7 @@ In this portfolio, I will try to analyze the way Rush's music changed over the y
 Column
 ---
 
-### The Corpora 
+### The Corpus
 Of course, the most important corpus I will use is that containing the audio features of the entire discography of Rush itself. Upon initial inspection, I decided to remove the album "2112 - 40 Years Closer: A Q&A With Alex Lifeson And Terry Brown Commentary" as it contains commentary and is thus not relevant to my analysis. Furthermore, I will include the more detailed audio analysis for each track in the corpus. 
 
 
